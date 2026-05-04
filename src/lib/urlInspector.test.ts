@@ -296,51 +296,48 @@ describe('inspectUrl', () => {
     expect(isShortUrl('https://share.google/7bfa3DqSWb4jQEc7L')).toBe(true)
   })
 
-  it('falls back to follow-redirect fetch when chain ends on Google interstitial', async () => {
-    // Two calls: first for manual chain, second for follow-redirect fallback
+  it('detects proxy x-final-url for CORS-blocked URLs', async () => {
     let callCount = 0
     global.fetch = vi.fn().mockImplementation(() => {
       callCount++
-      // First call (manual): share.google → 302
+      // Call 1 (direct): CORS error — retry with proxy
       if (callCount === 1) {
-        return Promise.resolve({
-          status: 302,
-          statusText: 'Found',
-          headers: new Headers({ Location: 'https://www.google.com/share.google?q=abc123' }),
-          redirected: false,
-          url: 'https://share.google/abc123',
-        })
+        return Promise.reject(new TypeError('Failed to fetch'))
       }
-      // Second call (manual): www.google.com/share.google → 200 interstitial
-      if (callCount === 2) {
+      // Call 2 (proxy): share.google → proxy returns 200 with x-final-url
+      if (callCount <= 3) {
+        const headers = new Headers()
+        headers.set('x-final-url', 'https://example.com/real-destination')
         return Promise.resolve({
           status: 200,
           statusText: 'OK',
-          headers: new Headers(),
+          headers,
           redirected: false,
-          url: 'https://www.google.com/share.google?q=abc123',
+          url: 'https://corsproxy.io/?url=https%3A%2F%2Fshare.google%2Fabc123',
         })
       }
-      // Third call (follow-redirect fallback): finds true final URL
+      // Call 4 (probe HEAD): returns x-final-url
+      const headers = new Headers()
+      headers.set('x-final-url', 'https://example.com/real-destination')
       return Promise.resolve({
         status: 200,
         statusText: 'OK',
-        headers: new Headers(),
-        redirected: true,
-        url: 'https://example.com/real-destination',
+        headers,
+        redirected: false,
+        url: 'https://corsproxy.io/?url=https%3A%2F%2Fshare.google%2Fabc123',
       })
     })
 
     const result = await inspectUrl('https://share.google/abc123')
-    // Should have found the real destination via follow-redirect fallback
+    // Should have found the real destination via proxy x-final-url
     expect(result.finalUrl).toBe('https://example.com/real-destination')
-    // The last hop should be synthetic (from JS redirect fallback)
+    // The last hop should be synthetic
     const lastHop = result.hops[result.hops.length - 1]
     expect(lastHop.synthetic).toBe(true)
     expect(lastHop.statusText).toBe('JS Redirect')
   })
 
-  it('does not trigger interstitial fallback for non-Google domains', async () => {
+  it('does not trigger proxy probe for direct-fetch URLs', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       status: 200,
       statusText: 'OK',
