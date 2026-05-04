@@ -237,7 +237,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   if (proxyUsed && lastHop && lastHop.statusCode === 200) {
     try {
       const probeUrl = `${CORS_PROXY}${encodeURIComponent(normalizedUrl)}`
-      const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD' })
+      const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
       const proxyFinalUrl = probeResponse.headers.get('x-final-url')
       if (proxyFinalUrl && proxyFinalUrl !== lastHop.url) {
         finalHops.push({
