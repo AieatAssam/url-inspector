@@ -34,8 +34,11 @@ Tracking token usage and estimated costs for this project.
 | # | Activity | Input (cached) | Input (new) | Output | Cache hit |
 |---|---|---|---|---|---|
 | 1 | Research + Build (all phases above) | 67k | 36k | 30k | 65% |
+| 2 | Cost tracking setup: AGENTS.md, git push, final token snapshot | 4k△ | 26k△ | 557 | 53% |
 
 ---
+
+*△ for row 2: delta between two session_status snapshots (first at build completion, second after push). The cached/new split is from provider telemetry.*
 
 ## How to update
 
