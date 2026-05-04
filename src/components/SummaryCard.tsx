@@ -4,22 +4,10 @@ import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { Copy, Check, ExternalLink, ShieldCheck, Shield, Route, Zap } from 'lucide-react'
 import type { InspectionResult } from '@/lib/urlInspector'
+import { formatUrl } from '@/lib/formatUrl'
 
 interface SummaryCardProps {
   result: InspectionResult
-}
-
-function formatUrl(url: string, maxLen = 50): { display: string; full: string } {
-  try {
-    const parsed = new URL(url)
-    const path = parsed.pathname + parsed.search
-    const display = path.length > maxLen
-      ? path.substring(0, maxLen - 3) + '…'
-      : path
-    return { display: parsed.hostname + display, full: url }
-  } catch {
-    return { display: url.length > maxLen ? url.substring(0, maxLen - 3) + '…' : url, full: url }
-  }
 }
 
 export function SummaryCard({ result }: SummaryCardProps) {
