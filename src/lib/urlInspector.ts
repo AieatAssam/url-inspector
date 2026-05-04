@@ -256,7 +256,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     }
   }
 
-  const totalRedirects = finalHops.filter(h => !h.isFinal).length
+  const totalRedirects = Math.max(0, finalHops.length - 1)
   const totalTiming = finalHops.reduce((sum, h) => sum + h.timingMs, 0)
 
   return {
