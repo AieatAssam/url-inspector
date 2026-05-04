@@ -22,11 +22,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
-      - run: npm run test -- --coverage
         env:
-          NODE_OPTIONS: --experimental-vm-modules
+          npm_config_prefer_offline: false
+      - run: npm run test -- --coverage
 
   build-and-deploy:
     needs: [test]
@@ -39,8 +38,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
       - run: npm ci
+        env:
+          npm_config_prefer_offline: false
       - run: npm run build
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
