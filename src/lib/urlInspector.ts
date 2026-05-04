@@ -1,3 +1,5 @@
+import { stripTrackingParams } from './urlCleaner'
+
 export interface Hop {
   url: string
   statusCode: number
@@ -6,15 +8,32 @@ export interface Hop {
   location: string | null
   error?: string
   isFinal: boolean
+  synthetic?: boolean
 }
 
 const CORS_PROXY = 'https://corsproxy.io/?url='
 
-// Known tracking/redirect patterns to detect
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
   'buff.ly', 'shorturl.at', 'tiny.cc', 'bl.ink', 'lnkd.in', 'rb.gy',
   'rebrand.ly', 'cutt.ly', 'shorte.st', 'v.gd', 'clicky.me',
+]
+
+/** Known URL wrapper patterns that use query params to store the real destination */
+interface WrapperPattern {
+  hostname: string
+  pathPattern: RegExp
+  param: string
+  label: string
+}
+
+const URL_WRAPPERS: WrapperPattern[] = [
+  { hostname: 'www.google.com', pathPattern: /^\/url\b/, param: 'q', label: 'Google Safe Browsing' },
+  { hostname: 'google.com',    pathPattern: /^\/url\b/, param: 'q', label: 'Google Safe Browsing' },
+  { hostname: 'l.facebook.com', pathPattern: /^\/l\.php\b/, param: 'u', label: 'Facebook Link' },
+  { hostname: 'out.reddit.com', pathPattern: /./, param: 'url', label: 'Reddit Outbound' },
+  { hostname: 'www.linkedin.com', pathPattern: /^\/feed\/update\//, param: 'url', label: 'LinkedIn Feed' },
+  { hostname: 'linkedin.com', pathPattern: /^\/feed\/update\//, param: 'url', label: 'LinkedIn Feed' },
 ]
 
 export function isShortUrl(url: string): boolean {
@@ -45,6 +64,28 @@ export function countTrackingParams(url: string): number {
   }
 }
 
+/**
+ * Detect if a URL is a known URL wrapper and extract the real destination.
+ */
+export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: string } | null {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname
+
+    for (const pattern of URL_WRAPPERS) {
+      if (pattern.hostname === hostname && pattern.pathPattern.test(parsed.pathname)) {
+        const destination = parsed.searchParams.get(pattern.param)
+        if (destination) {
+          return { wrapper: pattern, destination }
+        }
+      }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
@@ -60,6 +101,21 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
   const hops: Hop[] = []
   let currentUrl = url
   let proxyUsed = useProxy
+
+  // First, check if the URL is a known wrapper and extract the destination
+  const wrapper = unwrapUrl(currentUrl)
+  if (wrapper) {
+    hops.push({
+      url: currentUrl,
+      statusCode: 200,
+      statusText: wrapper.wrapper.label,
+      timingMs: 0,
+      location: wrapper.destination,
+      isFinal: false,
+      synthetic: true,
+    })
+    currentUrl = wrapper.destination
+  }
 
   for (let i = 0; i < maxHops; i++) {
     const startTime = performance.now()
@@ -82,9 +138,8 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
         // Location header not available
       }
 
-      // For proxy responses, the actual status might be wrapped
-      let statusCode = response.status
-      let statusText = response.statusText
+      const statusCode = response.status
+      const statusText = response.statusText
 
       // Check if this is a redirect
       const isRedirect = statusCode >= 300 && statusCode < 400
@@ -113,7 +168,6 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
       // If we get an opaque response from direct fetch, switch to proxy
       if (statusCode === 0 && !proxyUsed) {
         proxyUsed = true
-        // Retry this URL with proxy
         hops.pop()
         i--
         continue
@@ -125,7 +179,6 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
       // If direct fetch failed and we haven't tried proxy yet
       if (!proxyUsed) {
         proxyUsed = true
-        // Retry from current URL with proxy
         continue
       }
 
@@ -153,6 +206,7 @@ export interface InspectionResult {
   totalTiming: number
   finalUrl: string
   proxyUsed: boolean
+  wrapperDetected: boolean
 }
 
 export async function inspectUrl(url: string): Promise<InspectionResult> {
@@ -162,7 +216,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     normalizedUrl = 'https://' + normalizedUrl
   }
 
-  const cleanUrl = stripTrackingParamsSimple(normalizedUrl)
+  const cleanUrl = stripTrackingParams(normalizedUrl)
   const cleanUrlStr = cleanUrl !== normalizedUrl ? cleanUrl : null
 
   const hops = await followChain(normalizedUrl, false)
@@ -187,25 +241,6 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     totalTiming,
     finalUrl,
     proxyUsed: proxyUsed && finalHops.length > 0,
-  }
-}
-
-function stripTrackingParamsSimple(url: string): string {
-  const TRACKING_PARAMS = [
-    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-    'fbclid', 'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
-    'msclkid', 'twclid', 'igshid', 'mc_cid', 'mc_eid',
-    '_ga', '_gl', '_hsenc', '_hsmi', 'hsCtaTracking',
-    'ref', 'source', 'si', 's_kwcid', 'ef_id',
-    'mkt_tok', 'vero_conv', 'vero_id',
-  ]
-  try {
-    const parsed = new URL(url)
-    for (const param of TRACKING_PARAMS) {
-      parsed.searchParams.delete(param)
-    }
-    return parsed.toString()
-  } catch {
-    return url
+    wrapperDetected: finalHops.some(h => h.synthetic),
   }
 }

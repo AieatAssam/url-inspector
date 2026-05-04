@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { isShortUrl, countTrackingParams, inspectUrl } from './urlInspector'
+import { isShortUrl, countTrackingParams, inspectUrl, unwrapUrl } from './urlInspector'
 
 describe('isShortUrl', () => {
   it('detects common URL shorteners', () => {
@@ -72,6 +72,50 @@ describe('countTrackingParams', () => {
   })
 })
 
+describe('unwrapUrl', () => {
+  it('extracts destination from Google URL wrapper', () => {
+    const result = unwrapUrl('https://www.google.com/url?q=https://example.com&source=web')
+    expect(result).not.toBeNull()
+    expect(result!.destination).toBe('https://example.com')
+    expect(result!.wrapper.label).toBe('Google Safe Browsing')
+  })
+
+  it('extracts destination from Google URL wrapper without www', () => {
+    const result = unwrapUrl('https://google.com/url?q=https://example.com')
+    expect(result).not.toBeNull()
+    expect(result!.destination).toBe('https://example.com')
+  })
+
+  it('extracts destination from Facebook link wrapper', () => {
+    const result = unwrapUrl('https://l.facebook.com/l.php?u=https://example.com&h=abc123')
+    expect(result).not.toBeNull()
+    expect(result!.destination).toBe('https://example.com')
+    expect(result!.wrapper.label).toBe('Facebook Link')
+  })
+
+  it('extracts destination from Reddit outbound', () => {
+    const result = unwrapUrl('https://out.reddit.com/t3_abc?url=https://example.com')
+    expect(result).not.toBeNull()
+    expect(result!.destination).toBe('https://example.com')
+    expect(result!.wrapper.label).toBe('Reddit Outbound')
+  })
+
+  it('returns null for regular URLs', () => {
+    expect(unwrapUrl('https://example.com/page')).toBeNull()
+    expect(unwrapUrl('https://www.google.com/search?q=hello')).toBeNull()
+  })
+
+  it('returns null for invalid URLs', () => {
+    expect(unwrapUrl('')).toBeNull()
+    expect(unwrapUrl('not-a-url')).toBeNull()
+  })
+
+  it('returns null when Google URL has no q parameter', () => {
+    const result = unwrapUrl('https://www.google.com/url?sa=t&source=web')
+    expect(result).toBeNull()
+  })
+})
+
 describe('inspectUrl', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -108,7 +152,6 @@ describe('inspectUrl', () => {
   })
 
   it('returns both original and clean URL', async () => {
-    // Mock fetch to return a simple response
     global.fetch = vi.fn().mockResolvedValue({
       status: 200,
       statusText: 'OK',
@@ -216,5 +259,36 @@ describe('inspectUrl', () => {
 
     const result = await inspectUrl('https://example.com/page#section')
     expect(result.finalUrl).toBeDefined()
+  })
+
+  it('detects wrapper for Google URL and creates synthetic hop', async () => {
+    // First call to unwrap detects Google wrapper, second call follows the extracted URL
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      redirected: false,
+      url: 'https://example.com/',
+    })
+
+    const result = await inspectUrl('https://www.google.com/url?q=https://example.com')
+    expect(result.wrapperDetected).toBe(true)
+    // Should have a synthetic hop + the real hop
+    expect(result.hops.length).toBeGreaterThanOrEqual(2)
+    expect(result.hops[0].synthetic).toBe(true)
+    expect(result.hops[0].statusText).toBe('Google Safe Browsing')
+  })
+
+  it('sets wrapperDetected to false for normal URLs', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      redirected: false,
+      url: 'https://example.com/',
+    })
+
+    const result = await inspectUrl('https://example.com')
+    expect(result.wrapperDetected).toBe(false)
   })
 })

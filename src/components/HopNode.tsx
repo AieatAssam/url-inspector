@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   XCircle,
   Clock,
+  ScanSearch,
 } from 'lucide-react'
 
 interface HopNodeProps {
@@ -17,7 +18,10 @@ interface HopNodeProps {
   showAdvanced: boolean
 }
 
-function getStatusBadge(statusCode: number) {
+function getStatusBadge(statusCode: number, synthetic?: boolean) {
+  if (synthetic) {
+    return { variant: 'outline' as const, label: 'Wrap', icon: ScanSearch }
+  }
   if (statusCode >= 200 && statusCode < 300) {
     return { variant: 'default' as const, label: statusCode, icon: CheckCircle2 }
   }
@@ -34,7 +38,7 @@ function getStatusBadge(statusCode: number) {
 }
 
 export function HopNode({ hop, index, maxTiming, showAdvanced }: HopNodeProps) {
-  const statusInfo = getStatusBadge(hop.statusCode)
+  const statusInfo = getStatusBadge(hop.statusCode, hop.synthetic)
   const StatusIcon = statusInfo.icon
   const timingPercent = maxTiming > 0 ? (hop.timingMs / maxTiming) * 100 : 0
 
@@ -64,7 +68,7 @@ export function HopNode({ hop, index, maxTiming, showAdvanced }: HopNodeProps) {
           </TooltipTrigger>
           <TooltipContent side="top">
             <p className="font-mono text-xs">
-              {hop.statusCode} {hop.statusText || (hop.isFinal ? 'OK' : 'Redirect')}
+              {hop.synthetic ? 'URL wrapper — extracted destination' : `${hop.statusCode} ${hop.statusText || (hop.isFinal ? 'OK' : 'Redirect')}`}
             </p>
           </TooltipContent>
         </Tooltip>

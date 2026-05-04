@@ -16,6 +16,7 @@ const mockResult: InspectionResult = {
   totalTiming: 350,
   finalUrl: 'https://example.com/final',
   proxyUsed: false,
+  wrapperDetected: false,
 }
 
 const directResult: InspectionResult = {
@@ -28,6 +29,7 @@ const directResult: InspectionResult = {
   totalTiming: 100,
   finalUrl: 'https://example.com/some/very/long/path/that/gets/truncated/in/the/display?q=search',
   proxyUsed: false,
+  wrapperDetected: false,
 }
 
 function renderWithProvider(ui: React.ReactElement) {
