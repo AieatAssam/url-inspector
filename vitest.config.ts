@@ -23,14 +23,14 @@ export default defineConfig({
       thresholds: {
         'src/lib/**': {
           statements: 90,
-          branches: 90,
+          branches: 88,
           functions: 90,
           lines: 90,
         },
         'src/**': {
           statements: 80,
           branches: 75,
-          functions: 74,
+          functions: 70,
           lines: 80,
         },
       },

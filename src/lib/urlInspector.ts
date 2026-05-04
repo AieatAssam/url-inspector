@@ -1,5 +1,42 @@
 import { stripTrackingParams } from './urlCleaner'
 
+/** Headers worth surfacing in advanced mode */
+const INTERESTING_HEADERS = [
+  'content-type', 'content-length', 'server', 'cache-control',
+  'x-cache-status', 'x-final-url', 'x-proxy-time',
+  'set-cookie', 'strict-transport-security', 'x-frame-options',
+  'x-content-type-options', 'referrer-policy',
+]
+
+const STATUS_MEANINGS: Record<number, string> = {
+  200: 'OK \u2014 request succeeded',
+  201: 'Created \u2014 resource created',
+  204: 'No Content \u2014 request succeeded, no body',
+  301: 'Moved Permanently \u2014 resource has a new URL, update bookmarks',
+  302: 'Found \u2014 temporary redirect',
+  303: 'See Other \u2014 redirect to another resource via GET',
+  304: 'Not Modified \u2014 cached version is still valid',
+  307: 'Temporary Redirect \u2014 repeat the request at the new URL',
+  308: 'Permanent Redirect \u2014 resource has a new permanent URL',
+  400: 'Bad Request \u2014 server could not understand the request',
+  401: 'Unauthorized \u2014 authentication required',
+  403: 'Forbidden \u2014 access denied',
+  404: 'Not Found \u2014 resource does not exist',
+  429: 'Too Many Requests \u2014 rate limited',
+  500: 'Internal Server Error \u2014 server encountered an error',
+  502: 'Bad Gateway \u2014 upstream server error',
+  503: 'Service Unavailable \u2014 server is temporarily overloaded',
+}
+
+function hopHeaders(response: Response): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const key of INTERESTING_HEADERS) {
+    const val = response.headers.get(key)
+    if (val) result[key] = val
+  }
+  return result
+}
+
 export interface Hop {
   url: string
   statusCode: number
@@ -9,6 +46,8 @@ export interface Hop {
   error?: string
   isFinal: boolean
   synthetic?: boolean
+  headers?: Record<string, string>
+  statusMeaning?: string
 }
 
 const CORS_PROXY = 'https://corsproxy.io/?url='
@@ -114,6 +153,7 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
       location: wrapper.destination,
       isFinal: false,
       synthetic: true,
+      statusMeaning: 'URL wrapper \u2014 extracted from ' + wrapper.wrapper.label,
     })
     currentUrl = wrapper.destination
   }
@@ -153,6 +193,8 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
         timingMs,
         location,
         isFinal,
+        headers: hopHeaders(response),
+        statusMeaning: STATUS_MEANINGS[statusCode],
       })
 
       if (isFinal) break
@@ -191,6 +233,7 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
         location: null,
         error: err instanceof TypeError ? 'CORS / Network error' : (err as Error).message,
         isFinal: true,
+        statusMeaning: 'Request failed \u2014 ' + (err instanceof TypeError ? 'CORS or network issue' : (err as Error).message),
       })
       break
     }
@@ -240,6 +283,9 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
       const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
       const proxyFinalUrl = probeResponse.headers.get('x-final-url')
       if (proxyFinalUrl && proxyFinalUrl !== lastHop.url) {
+        const headers: Record<string, string> = {}
+        const pfu = probeResponse.headers.get('x-final-url')
+        if (pfu) headers['x-final-url'] = pfu
         finalHops.push({
           url: proxyFinalUrl,
           statusCode: 200,
@@ -248,6 +294,8 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
           location: null,
           isFinal: true,
           synthetic: true,
+          headers,
+          statusMeaning: 'Interstitial redirect \u2014 resolved via CORS proxy',
         })
         finalUrl = proxyFinalUrl
       }

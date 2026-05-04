@@ -64,7 +64,7 @@ describe('SummaryCard', () => {
 
   it('shows clean URL section when tracking params found', () => {
     renderWithProvider(<SummaryCard result={mockResult} />)
-    expect(screen.getByText('Tracking parameters stripped')).toBeInTheDocument()
+    expect(screen.getByText('Clean URL')).toBeInTheDocument()
   })
 
   it('shows "Clean" badge when no tracking params', () => {
