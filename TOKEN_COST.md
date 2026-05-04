@@ -37,6 +37,7 @@ Tracking token usage and estimated costs for this project.
 | 2 | Cost tracking setup: AGENTS.md, git push, final token snapshot | 4k△ | 26k△ | 557 | 53% |
 | 3 | CI fix, unit tests (94 tests), coverage gating, GHA workflow update | 6k△ | 6k△ | 95 | 53% |
 | 4 | URL wrapper detection (Google/FB/Reddit), share.google fix, x-final-url probe | 9k△ | 9k△ | 157 | 53% |
+| 5 | Power user features (headers, status meanings, tracking breakdown), probe fix | 5k△ | 5k△ | 80 | - |
 
 ---
 
