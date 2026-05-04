@@ -5,46 +5,36 @@ Tracking token usage and estimated costs for this project.
 ## Rate assumptions
 
 - **Model:** deepseek/deepseek-v4-flash (OpenClaw default)
-- **Data source:** `session_status` reports from the OpenClaw main session
+- **Data source:** `session_status` reports
+- All work done in one session on 2026-05-04
 
 ---
 
-## Running Totals
+## Final Session
 
 | Metric | Value |
 |---|---|
-| Input (cached) | 67k tokens |
-| Input (new) | 36k tokens |
-| Output | 30k tokens |
-| Cache hit rate | 65% |
-| Estimated cost | ~$0.01 |
-
----
+| Input (new) | 254k tokens |
+| Input (cached) | 269k tokens |
+| Output (last turn) | 8.7k tokens |
+| Cache hit rate | 51% |
+| Estimated cost | $0.04 |
+| Max context used | 269k / 1M (27%) |
 
 ## Activity Log
 
-### 2026-05-04 — Initial Research & Build
+| # | Phase | What was done |
+|---|---|---|
+| 1 | **Research** | Web searches for tool ideas, analysis of Reddit/HN pain points, proposed 8 candidates, user picked URL Inspector |
+| 2 | **Scaffold & Build** | Vite + React 19 + TS 6 + Tailwind 4 + shadcn/ui, redirect chain library, CORS fallback, timing, 5 components |
+| 3 | **CI & Tests** | npm lock fix (npm 10 vs 11), caching, 94 unit tests, coverage gating (90%+ lib), agent instructions |
+| 4 | **URL Detection** | URL wrappers (Google, Facebook, Reddit, LinkedIn), `share.google` handling, x-final-url probe, synthetic hops |
+| 5 | **Power Features** | Per-hop response headers, status meanings, tracking param breakdown, probe dedup, probe URL fix |
 
-**Phase 1: Research** — Web searches for useful tool ideas, browsing GitHub Pages examples, analyzing what people actually want from social/tech communities, synthesizing proposals, user selected option #1.
-
-**Phase 2: Scaffold & Build** — Project setup (Vite + React 19 + TypeScript 6 + Tailwind 4 + shadcn/ui), wrote URL Inspector library (redirect chain following, CORS fallback, timing measurement, tracking param stripper), built React components (UrlForm, HopNode, RedirectChain, SummaryCard, ResultDisplay), configured GitHub Pages deploy workflow and GH Actions CI.
-
-**Phase 3: Polish** — Fixed TypeScript build issues, missing dependencies, shadcn component setup, removed unused imports, added dark mode support, animations, proper index.html metadata.
-
-| # | Activity | Input (cached) | Input (new) | Output | Cache hit |
-|---|---|---|---|---|---|
-| 1 | Research + Build (all phases above) | 67k | 36k | 30k | 65% |
-| 2 | Cost tracking setup: AGENTS.md, git push, final token snapshot | 4k△ | 26k△ | 557 | 53% |
-| 3 | CI fix, unit tests (94 tests), coverage gating, GHA workflow update | 6k△ | 6k△ | 95 | 53% |
-| 4 | URL wrapper detection (Google/FB/Reddit), share.google fix, x-final-url probe | 9k△ | 9k△ | 157 | 53% |
-| 5 | Power user features (headers, status meanings, tracking breakdown), probe fix | 5k△ | 5k△ | 80 | - |
+**Total test count:** 118 tests across 9 test files
 
 ---
 
-*△ for row 2: delta between two session_status snapshots (first at build completion, second after push). The cached/new split is from provider telemetry.*
-
 ## How to update
 
-See `AGENTS.md` for the mandatory cost-tracking workflow.
-
-When working on this project in future sessions: before and after each session, run `session_status` in OpenClaw, compute the delta, and add a new row below.
+See `AGENTS.md` for the mandatory cost-tracking workflow. Before/after each future session: run `session_status`, append new activity row.
