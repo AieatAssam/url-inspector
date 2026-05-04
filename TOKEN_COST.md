@@ -35,6 +35,7 @@ Tracking token usage and estimated costs for this project.
 |---|---|---|---|---|---|
 | 1 | Research + Build (all phases above) | 67k | 36k | 30k | 65% |
 | 2 | Cost tracking setup: AGENTS.md, git push, final token snapshot | 4k△ | 26k△ | 557 | 53% |
+| 3 | CI fix, unit tests (94 tests), coverage gating, GHA workflow update | 6k△ | 6k△ | 95 | 53% |
 
 ---
 
