@@ -291,4 +291,65 @@ describe('inspectUrl', () => {
     const result = await inspectUrl('https://example.com')
     expect(result.wrapperDetected).toBe(false)
   })
+
+  it('detects share.google as short URL', () => {
+    expect(isShortUrl('https://share.google/7bfa3DqSWb4jQEc7L')).toBe(true)
+  })
+
+  it('falls back to follow-redirect fetch when chain ends on Google interstitial', async () => {
+    // Two calls: first for manual chain, second for follow-redirect fallback
+    let callCount = 0
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      // First call (manual): share.google → 302
+      if (callCount === 1) {
+        return Promise.resolve({
+          status: 302,
+          statusText: 'Found',
+          headers: new Headers({ Location: 'https://www.google.com/share.google?q=abc123' }),
+          redirected: false,
+          url: 'https://share.google/abc123',
+        })
+      }
+      // Second call (manual): www.google.com/share.google → 200 interstitial
+      if (callCount === 2) {
+        return Promise.resolve({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers(),
+          redirected: false,
+          url: 'https://www.google.com/share.google?q=abc123',
+        })
+      }
+      // Third call (follow-redirect fallback): finds true final URL
+      return Promise.resolve({
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers(),
+        redirected: true,
+        url: 'https://example.com/real-destination',
+      })
+    })
+
+    const result = await inspectUrl('https://share.google/abc123')
+    // Should have found the real destination via follow-redirect fallback
+    expect(result.finalUrl).toBe('https://example.com/real-destination')
+    // The last hop should be synthetic (from JS redirect fallback)
+    const lastHop = result.hops[result.hops.length - 1]
+    expect(lastHop.synthetic).toBe(true)
+    expect(lastHop.statusText).toBe('JS Redirect')
+  })
+
+  it('does not trigger interstitial fallback for non-Google domains', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      status: 200,
+      statusText: 'OK',
+      headers: new Headers(),
+      redirected: false,
+      url: 'https://example.com/',
+    })
+
+    const result = await inspectUrl('https://example.com')
+    expect(result.finalUrl).toBe('https://example.com')
+  })
 })

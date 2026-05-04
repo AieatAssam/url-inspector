@@ -17,6 +17,7 @@ const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
   'buff.ly', 'shorturl.at', 'tiny.cc', 'bl.ink', 'lnkd.in', 'rb.gy',
   'rebrand.ly', 'cutt.ly', 'shorte.st', 'v.gd', 'clicky.me',
+  'share.google',
 ]
 
 /** Known URL wrapper patterns that use query params to store the real destination */
@@ -198,6 +199,12 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
   return hops
 }
 
+/** URLs that end up at an interstitial with JavaScript redirect. We do a follow-redirect
+ *  fetch to discover the true final URL when the chain stops at these domains. */
+const INTERSTITIAL_DOMAINS = [
+  'www.google.com', 'google.com', 'www.google.co.uk', 'accounts.google.com',
+]
+
 export interface InspectionResult {
   originalUrl: string
   cleanUrl: string | null
@@ -220,18 +227,45 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const cleanUrlStr = cleanUrl !== normalizedUrl ? cleanUrl : null
 
   const hops = await followChain(normalizedUrl, false)
-  const proxyUsed = hops.some(h => h.error === 'CORS / Network error') || hops.length === 0
+  let proxyUsed = hops.some(h => h.error === 'CORS / Network error') || hops.length === 0
 
   // If direct failed, retry with proxy for the whole chain
   let finalHops = hops
   if (hops.length === 0 || (hops.length === 1 && hops[0].error)) {
     finalHops = await followChain(normalizedUrl, true)
+    proxyUsed = true
+  }
+
+  // Two-pass: if the chain stopped at an interstitial, use follow-redirect to
+  // discover the real final URL and append it as a synthetic hop
+  const lastHop = finalHops[finalHops.length - 1]
+  let finalUrl = lastHop?.url || normalizedUrl
+
+  if (lastHop && lastHop.isFinal && lastHop.statusCode === 200) {
+    try {
+      const finalHostname = new URL(lastHop.url).hostname
+      if (INTERSTITIAL_DOMAINS.includes(finalHostname)) {
+        const followResponse = await fetchWithTimeout(normalizedUrl, { redirect: 'follow' })
+        if (followResponse.url && followResponse.url !== lastHop.url) {
+          finalHops.push({
+            url: followResponse.url,
+            statusCode: 200,
+            statusText: 'JS Redirect',
+            timingMs: 0,
+            location: null,
+            isFinal: true,
+            synthetic: true,
+          })
+          finalUrl = followResponse.url
+        }
+      }
+    } catch {
+      // Interstitial fallback fetch failed, stick with the manual chain
+    }
   }
 
   const totalRedirects = finalHops.filter(h => !h.isFinal).length
   const totalTiming = finalHops.reduce((sum, h) => sum + h.timingMs, 0)
-  const lastHop = finalHops[finalHops.length - 1]
-  const finalUrl = lastHop?.url || normalizedUrl
 
   return {
     originalUrl: normalizedUrl,
@@ -240,7 +274,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     totalRedirects,
     totalTiming,
     finalUrl,
-    proxyUsed: proxyUsed && finalHops.length > 0,
+    proxyUsed,
     wrapperDetected: finalHops.some(h => h.synthetic),
   }
 }
