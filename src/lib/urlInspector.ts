@@ -282,7 +282,9 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
       const probeUrl = `${CORS_PROXY}${encodeURIComponent(lastHop.url)}`
       const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
       const proxyFinalUrl = probeResponse.headers.get('x-final-url')
-      if (proxyFinalUrl && proxyFinalUrl !== lastHop.url) {
+      // Normalize both URLs for comparison (strip trailing slash)
+      const normalizeUrl = (u: string) => u.replace(/\/$/, '')
+      if (proxyFinalUrl && normalizeUrl(proxyFinalUrl) !== normalizeUrl(lastHop.url)) {
         const headers: Record<string, string> = {}
         const pfu = probeResponse.headers.get('x-final-url')
         if (pfu) headers['x-final-url'] = pfu
