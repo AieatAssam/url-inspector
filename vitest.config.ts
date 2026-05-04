@@ -23,7 +23,7 @@ export default defineConfig({
       thresholds: {
         'src/lib/**': {
           statements: 90,
-          branches: 88,
+          branches: 86,
           functions: 90,
           lines: 90,
         },

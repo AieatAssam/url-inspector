@@ -126,11 +126,18 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
   }
 }
 
+// Realistic User-Agent to avoid 403 blocks from URL shorteners and link services
+const FAKE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
+
 async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal })
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+      headers: Object.assign({ 'User-Agent': FAKE_UA }, options.headers as Record<string, string> ?? {}),
+    })
     return response
   } finally {
     clearTimeout(timeoutId)
@@ -184,6 +191,15 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
 
       // Check if this is a redirect
       const isRedirect = statusCode >= 300 && statusCode < 400
+      const isClientError = statusCode >= 400 && statusCode < 500
+      const isServerError = statusCode >= 500
+
+      // If direct fetch returned an error, retry via CORS proxy
+      if ((isClientError || isServerError) && !proxyUsed) {
+        proxyUsed = true
+        continue
+      }
+
       const isFinal = !isRedirect || !location
 
       hops.push({
@@ -277,17 +293,27 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
-  if (proxyUsed && lastHop && lastHop.statusCode === 200) {
-    try {
-      const probeUrl = `${CORS_PROXY}${encodeURIComponent(lastHop.url)}`
-      const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
-      const proxyFinalUrl = probeResponse.headers.get('x-final-url')
-      // Normalize both URLs for comparison (strip trailing slash)
+  if (proxyUsed && lastHop) {
+    // Try to find x-final-url either from existing headers or via a probe
+    let proxyFinalUrl: string | null = null
+
+    // Check if last hop already has x-final-url in headers (from proxy response)
+    if (lastHop.headers?.['x-final-url']) {
+      proxyFinalUrl = lastHop.headers['x-final-url']
+    } else if (lastHop.statusCode === 200) {
+      // Probe the proxy for the true final URL
+      try {
+        const probeUrl = `${CORS_PROXY}${encodeURIComponent(lastHop.url)}`
+        const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
+        proxyFinalUrl = probeResponse.headers.get('x-final-url')
+      } catch {
+        // Probe failed, stick with manual chain
+      }
+    }
+
+    if (proxyFinalUrl) {
       const normalizeUrl = (u: string) => u.replace(/\/$/, '')
-      if (proxyFinalUrl && normalizeUrl(proxyFinalUrl) !== normalizeUrl(lastHop.url)) {
-        const headers: Record<string, string> = {}
-        const pfu = probeResponse.headers.get('x-final-url')
-        if (pfu) headers['x-final-url'] = pfu
+      if (normalizeUrl(proxyFinalUrl) !== normalizeUrl(lastHop.url)) {
         finalHops.push({
           url: proxyFinalUrl,
           statusCode: 200,
@@ -296,13 +322,11 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
           location: null,
           isFinal: true,
           synthetic: true,
-          headers,
+          headers: { 'x-final-url': proxyFinalUrl },
           statusMeaning: 'Interstitial redirect \u2014 resolved via CORS proxy',
         })
         finalUrl = proxyFinalUrl
       }
-    } catch {
-      // Probe failed, stick with manual chain
     }
   }
 
