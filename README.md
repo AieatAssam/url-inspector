@@ -1,8 +1,8 @@
 # 🔗 URL Inspector
 
-Inspect URL redirect chains, measure hop latency, and strip tracking parameters — all client-side, no backend required.
+**Live demo:** [aieatassam.github.io/url-inspector](https://aieatassam.github.io/url-inspector/)
 
-![screenshot](/url-inspector/screenshot.png)
+Inspect URL redirect chains, measure hop latency, and strip tracking parameters — all client-side, no backend required.
 
 ## Features
 
