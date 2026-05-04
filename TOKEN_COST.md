@@ -14,12 +14,12 @@ Tracking token usage and estimated costs for this project.
 
 | Metric | Value |
 |---|---|
-| Input (new) | 254k tokens |
-| Input (cached) | 269k tokens |
-| Output (last turn) | 8.7k tokens |
+| Input (new) | 273k tokens |
+| Input (cached) | 287k tokens |
+| Output (last turn) | 7.8k tokens |
 | Cache hit rate | 51% |
 | Estimated cost | $0.04 |
-| Max context used | 269k / 1M (27%) |
+| Max context used | 287k / 1M (29%) |
 
 ## Activity Log
 
@@ -30,6 +30,7 @@ Tracking token usage and estimated costs for this project.
 | 3 | **CI & Tests** | npm lock fix (npm 10 vs 11), caching, 94 unit tests, coverage gating (90%+ lib), agent instructions |
 | 4 | **URL Detection** | URL wrappers (Google, Facebook, Reddit, LinkedIn), `share.google` handling, x-final-url probe, synthetic hops |
 | 5 | **Power Features** | Per-hop response headers, status meanings, tracking param breakdown, probe dedup, probe URL fix |
+| 6 | **403 Handling** | 4xx/5xx retry via CORS proxy, fake User-Agent header, x-final-url from non-200 proxy responses, flip.it URL test |
 
 **Total test count:** 118 tests across 9 test files
 
