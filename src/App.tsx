@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { UrlForm } from '@/components/UrlForm'
 import { ResultDisplay } from '@/components/ResultDisplay'
 import { inspectUrl, type InspectionResult } from '@/lib/urlInspector'
-import { AlertCircle, Link2, GitBranch, MonitorSmartphone } from 'lucide-react'
+import { AlertCircle, Link2, GitBranch, MonitorSmartphone, Route, Zap, ShieldCheck, Eye, ExternalLink } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { TooltipProvider } from '@/components/ui/tooltip'
 
@@ -92,17 +92,78 @@ export default function App() {
 
           {/* Empty state */}
           {state.status === 'idle' && (
-            <div className="text-center py-12 space-y-4">
-              <div className="p-4 rounded-full bg-muted inline-flex">
-                <Link2 className="h-8 w-8 text-muted-foreground" />
+            <div className="space-y-6 animate-in fade-in duration-500">
+              <div className="text-center py-8 space-y-4">
+                <div className="p-4 rounded-full bg-primary/5 inline-flex animate-in fade-in slide-in-from-top-2 duration-500">
+                  <Link2 className="h-8 w-8 text-primary/60" />
+                </div>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    Paste a shortened or redirect-heavy URL above to inspect it
+                  </p>
+                  <p className="text-xs text-muted-foreground/60">
+                    Works with bit.ly, t.co, google.com/url, share.google, and any redirect chain
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm text-muted-foreground">
-                  Paste a shortened or redirect-heavy URL above
-                </p>
-                <p className="text-xs text-muted-foreground/60 mt-1">
-                  Works with bit.ly, t.co, google.com/url, and any redirect chain
-                </p>
+
+              {/* Feature cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="rounded-lg border bg-card p-4 space-y-2 hover:border-primary/30 transition-colors duration-200">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-blue-500/10">
+                      <Route className="h-4 w-4 text-blue-500" />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Redirect Chain
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                    Follow every hop from start to finish — see status codes, timing, and response headers.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border bg-card p-4 space-y-2 hover:border-primary/30 transition-colors duration-200">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-green-500/10">
+                      <ShieldCheck className="h-4 w-4 text-green-500" />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Tracker Removal
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                    Automatically detect and strip UTM, social, and marketing tracking parameters.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border bg-card p-4 space-y-2 hover:border-primary/30 transition-colors duration-200">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-amber-500/10">
+                      <Eye className="h-4 w-4 text-amber-500" />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      OG Preview
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                    See preview cards of the final destination — title, description, and image.
+                  </p>
+                </div>
+
+                <div className="rounded-lg border bg-card p-4 space-y-2 hover:border-primary/30 transition-colors duration-200">
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 rounded-md bg-purple-500/10">
+                      <Zap className="h-4 w-4 text-purple-500" />
+                    </div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Speed Metrics
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed">
+                    Measure latency per hop with visual timing bars and total request time.
+                  </p>
+                </div>
               </div>
             </div>
           )}

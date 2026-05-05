@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { cn } from '@/lib/utils'
 import { fetchOgPreview, type OgData } from '@/lib/ogPreview'
-import { ExternalLink, ImageOff, Globe, Loader2 } from 'lucide-react'
+import { ExternalLink, Globe } from 'lucide-react'
 
 interface OgPreviewProps {
   url: string
@@ -15,20 +15,21 @@ type OgPreviewState =
   | { status: 'empty' }
 
 function OgPreviewLoading() {
+  const shimmer = 'rounded animate-shimmer'
   return (
-    <Card className="animate-pulse overflow-hidden">
+    <Card className="overflow-hidden">
       {/* Image skeleton */}
-      <div className="aspect-[2/1] bg-muted" />
+      <div className={`aspect-[2/1] ${shimmer}`} />
       <CardContent className="p-4 space-y-3">
         {/* Domain */}
-        <div className="h-3 w-20 rounded bg-muted" />
+        <div className={`h-3 w-20 ${shimmer}`} />
         {/* Title */}
-        <div className="h-4 w-3/4 rounded bg-muted" />
-        <div className="h-4 w-1/2 rounded bg-muted" />
+        <div className={`h-4 w-3/4 ${shimmer}`} />
+        <div className={`h-4 w-1/2 ${shimmer}`} />
         {/* Description */}
         <div className="space-y-1.5">
-          <div className="h-3 w-full rounded bg-muted" />
-          <div className="h-3 w-5/6 rounded bg-muted" />
+          <div className={`h-3 w-full ${shimmer}`} />
+          <div className={`h-3 w-5/6 ${shimmer}`} />
         </div>
       </CardContent>
     </Card>
@@ -133,7 +134,7 @@ export function OgPreview({ url }: OgPreviewProps) {
       rel="noopener noreferrer"
       className="block group"
     >
-      <Card className="overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/30 group-hover:bg-accent/5">
+      <Card className="overflow-hidden transition-all duration-200 hover:shadow-md hover:border-primary/30 group-hover:bg-accent/5 animate-scale-in">
         {/* Image */}
         {hasImage && (
           <div className="relative aspect-[2/1] bg-muted overflow-hidden">
