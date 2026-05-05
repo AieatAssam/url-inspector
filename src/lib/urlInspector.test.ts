@@ -563,4 +563,116 @@ describe('inspectUrl', () => {
     const result = await inspectUrl('https://example.com')
     expect(result.finalUrl).toBe('https://example.com')
   })
+
+  it('preserves original URL query params when og:url drops them (e.g. LinkedIn comments)', async () => {
+    let callCount = 0
+    // Mock HTML with og:url that has NO query params (like LinkedIn)
+    const htmlContent = `<!DOCTYPE html><html><head>
+      <meta property="og:url" content="https://www.linkedin.com/posts/user_post" />
+      <link rel="canonical" href="https://www.linkedin.com/posts/user_post" />
+      <title>LinkedIn Post</title>
+    </head><body></body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(htmlContent)
+
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      const body = createBody()
+      return Promise.resolve({
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Flinkedin%2Fpost',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+      })
+    })
+
+    const result = await inspectUrl('https://www.linkedin.com/feed/update/post?commentUrn=abc123&dashCommentUrn=def456')
+    // og:url drops commentUrn and dashCommentUrn - the original should be preserved
+    expect(result.finalUrl).toBe('https://www.linkedin.com/feed/update/post?commentUrn=abc123&dashCommentUrn=def456')
+    // Should NOT have pushed a synthetic Proxy Resolved hop for the og:url
+    expect(result.hops.filter(h => h.synthetic).length).toBe(0)
+  })
+
+  it('resolves via unshorten.me when resolverEnabled is true', async () => {
+    let callCount = 0
+    const forbesHtml = `<!DOCTYPE html><html><head><title>forbes.com</title></head><body>blocked</body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(forbesHtml)
+
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      // Calls 2+: proxy or unshorten.me
+      const body = createBody()
+      return Promise.resolve({
+        status: 200,
+        ok: true,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        url: 'https://api.codetabs.com/v1/proxy/?quest=...',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+        text: () => Promise.resolve(JSON.stringify({
+          requested_url: 'https://flip.it/short',
+          success: true,
+          resolved_url: 'https://www.forbes.com/full-article',
+          remaining_calls: 8,
+        })),
+      })
+    })
+
+    const result = await inspectUrl('https://flip.it/short', true)
+    expect(result.resolverUsed).toBe(true)
+    expect(result.resolverRemaining).toBe(8)
+    expect(result.finalUrl).toBe('https://www.forbes.com/full-article')
+  })
 })
