@@ -1,0 +1,9 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "url-inspector-resolver",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-05",
+  "observability": {
+    "enabled": false
+  }
+}

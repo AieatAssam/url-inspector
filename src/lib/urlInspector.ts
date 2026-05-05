@@ -52,8 +52,12 @@ export interface Hop {
 
 const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 
-// External URL expansion via unshorten.me for when proxy content is blocked
-const UNSHORTEN_API = 'https://api.codetabs.com/v1/proxy/?quest=https://unshorten.me/json/'
+// Optional Cloudflare Worker for accurate redirect resolution (bypasses CORS).
+// Set this to your deployed worker URL, e.g.:
+//   https://url-inspector-resolver.<username>.workers.dev/resolve?url=
+// When null, falls back to showing "destination blocked" for scraping-blocked sites.
+const REDIRECT_RESOLVER: string | null = null
+// To enable, set: const REDIRECT_RESOLVER = 'https://your-worker.workers.dev/resolve?url='
 
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
@@ -115,26 +119,27 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
 }
 
 /**
- * Resolve a shortened URL to its final destination using unshorten.me
- * (called through the CORS proxy since unshorten.me has no CORS headers).
- * Returns the full resolved URL or null if resolution fails.
+ * Resolve a shortened URL using our Cloudflare Worker (server-side, no CORS).
+ * The worker fetches the URL with redirect: 'manual' and returns the Location
+ * header. This is the only way to get the exact redirect URL from the browser.
+ * Falls back to null if the worker is not configured.
  */
-async function resolveViaUnshorten(shortUrl: string): Promise<string | null> {
+async function resolveViaWorker(shortUrl: string): Promise<string | null> {
+  if (!REDIRECT_RESOLVER) return null
   try {
     const encoded = encodeURIComponent(shortUrl)
-    const response = await fetchWithTimeout(`${UNSHORTEN_API}${encoded}`, {
+    const response = await fetchWithTimeout(`${REDIRECT_RESOLVER}${encoded}`, {
       method: 'GET',
       mode: 'cors',
     }, 8000)
     if (!response.ok) return null
-    const text = await response.text()
-    // Parse the first brace-delimited JSON object in the response
-    const jsonMatch = text.match(/\{[^{}]*\}/)
-    if (!jsonMatch) return null
-    const data = JSON.parse(jsonMatch[0])
-    if (data.success && data.resolved_url) {
-      return data.resolved_url
+    const data: { status: number; location?: string; hops?: string[]; error?: string } = await response.json()
+    if (data.error) return null
+    // Return the final URL from the hop chain, or the location header
+    if (data.hops && data.hops.length > 1) {
+      return data.hops[data.hops.length - 1]
     }
+    if (data.location) return data.location
     return null
   } catch {
     return null
@@ -269,17 +274,17 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
               })
             }
           } else if (isShortUrl(currentUrl)) {
-            // Even without extracting a URL, mark that a redirect was resolved
-            // so the collapsed state shows 'Proxy Resolved' instead of 'No redirects'
+            // Even without extracting a URL, mark that a redirect was resolved.
+            // inspectUrl will try the Cloudflare Worker fallback if configured.
             hops.push({
               url: currentUrl,
               statusCode: 200,
-              statusText: 'Redirected \u2192 destination blocked',
+              statusText: 'Redirected \u2192 awaiting resolver',
               timingMs: 0,
               location: null,
               isFinal: true,
               synthetic: true,
-              statusMeaning: 'Redirect resolved via CORS proxy \u2014 final destination blocked scraping (JS challenge, paywall, or bot detection)',
+              statusMeaning: 'Redirect detected via CORS proxy \u2014 final destination will be resolved by optional server-side resolver',
             })
           }
         } catch {
@@ -369,13 +374,13 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
-  // Additional fallback: if the proxy was used and the last hop is synthetic
-  // but the final URL still points to the original short URL (meaning HTML
-  // extraction failed, e.g. Forbes JS challenge), try resolving via unshorten.me
+  // Additional fallback: if the proxy was used and inline HTML parsing failed
+  // (e.g. Forbes JS challenge), try our Cloudflare Worker for accurate resolution.
+  // The worker runs server-side, bypassing browser CORS to read the Location header.
+  // Falls back gracefully if worker is not configured or unavailable.
   if (proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
-    const resolved = await resolveViaUnshorten(normalizedUrl)
+    const resolved = await resolveViaWorker(normalizedUrl)
     if (resolved) {
-      // Replace the fallback "destination blocked" hop with the real URL
       finalHops[finalHops.length - 1] = {
         url: resolved,
         statusCode: 200,
@@ -384,7 +389,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
         location: null,
         isFinal: true,
         synthetic: true,
-        statusMeaning: 'Redirect resolved via unshorten.me \u2014 final URL from external resolver',
+        statusMeaning: 'Redirect resolved via Cloudflare Worker \u2014 final URL from server-side redirect chain',
       }
       finalUrl = resolved
     }
