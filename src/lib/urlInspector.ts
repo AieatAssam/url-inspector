@@ -52,6 +52,9 @@ export interface Hop {
 
 const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 
+// External URL expansion via unshorten.me for when proxy content is blocked
+const UNSHORTEN_API = 'https://api.codetabs.com/v1/proxy/?quest=https://unshorten.me/json/'
+
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
   'buff.ly', 'shorturl.at', 'tiny.cc', 'bl.ink', 'lnkd.in', 'rb.gy',
@@ -104,6 +107,33 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
           return { wrapper: pattern, destination }
         }
       }
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Resolve a shortened URL to its final destination using unshorten.me
+ * (called through the CORS proxy since unshorten.me has no CORS headers).
+ * Returns the full resolved URL or null if resolution fails.
+ */
+async function resolveViaUnshorten(shortUrl: string): Promise<string | null> {
+  try {
+    const encoded = encodeURIComponent(shortUrl)
+    const response = await fetchWithTimeout(`${UNSHORTEN_API}${encoded}`, {
+      method: 'GET',
+      mode: 'cors',
+    }, 8000)
+    if (!response.ok) return null
+    const text = await response.text()
+    // Parse the first brace-delimited JSON object in the response
+    const jsonMatch = text.match(/\{[^{}]*\}/)
+    if (!jsonMatch) return null
+    const data = JSON.parse(jsonMatch[0])
+    if (data.success && data.resolved_url) {
+      return data.resolved_url
     }
     return null
   } catch {
@@ -222,24 +252,6 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
           const canonMatch = chunk.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']/i)
           extractedUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
 
-          // Fallback: extract domain from <title> tag for sites that block scraping
-          // (e.g. Forbes JS challenge page: <title>forbes.com</title>)
-          if (!extractedUrl) {
-            const titleMatch = chunk.match(/<title>([^<]*)<\/title>/i)
-            const titleDomain = titleMatch?.[1]?.trim() || null
-            // If title looks like a domain (e.g. "forbes.com", "cnn.com"), use it
-            if (titleDomain && /^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-z]{2,}$/.test(titleDomain)) {
-              try {
-                const resolvedUrl = new URL(`https://${titleDomain}`).href
-                if (new URL(resolvedUrl).hostname !== new URL(currentUrl).hostname) {
-                  extractedUrl = resolvedUrl
-                }
-              } catch {
-                // Invalid domain, skip
-              }
-            }
-          }
-
           if (extractedUrl) {
             const normalize = (u: string) => u.replace(/\/$/, '')
             if (normalize(extractedUrl) !== normalize(currentUrl)) {
@@ -357,11 +369,33 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
+  // Additional fallback: if the proxy was used and the last hop is synthetic
+  // but the final URL still points to the original short URL (meaning HTML
+  // extraction failed, e.g. Forbes JS challenge), try resolving via unshorten.me
+  if (proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
+    const resolved = await resolveViaUnshorten(normalizedUrl)
+    if (resolved) {
+      // Replace the fallback "destination blocked" hop with the real URL
+      finalHops[finalHops.length - 1] = {
+        url: resolved,
+        statusCode: 200,
+        statusText: 'Proxy Resolved',
+        timingMs: 0,
+        location: null,
+        isFinal: true,
+        synthetic: true,
+        statusMeaning: 'Redirect resolved via unshorten.me \u2014 final URL from external resolver',
+      }
+      finalUrl = resolved
+    }
+  }
+
+  // Also try x-final-url (some proxies set this)
   if (proxyUsed && lastHop && lastHop.statusCode === 200) {
     const proxyFinalUrl = lastHop.headers?.['x-final-url'] ?? null
     if (proxyFinalUrl) {
       const normalizeUrl = (u: string) => u.replace(/\/$/, '')
-      if (normalizeUrl(proxyFinalUrl) !== normalizeUrl(lastHop.url)) {
+      if (normalizeUrl(proxyFinalUrl) !== normalizeUrl(finalUrl)) {
         finalHops.push({
           url: proxyFinalUrl,
           statusCode: 200,
