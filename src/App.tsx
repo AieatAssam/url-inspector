@@ -2,9 +2,11 @@ import { useState, useCallback } from 'react'
 import { UrlForm } from '@/components/UrlForm'
 import { ResultDisplay } from '@/components/ResultDisplay'
 import { inspectUrl, type InspectionResult } from '@/lib/urlInspector'
-import { AlertCircle, Link2, GitBranch, Route, ShieldCheck, Eye, Zap } from 'lucide-react'
+import { AlertCircle, Link2, GitBranch, Route, ShieldCheck, Eye, Zap, ExternalLink } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 
 interface AppState {
   status: 'idle' | 'loading' | 'success' | 'error'
@@ -38,12 +40,13 @@ export default function App() {
     result: null,
     error: null,
   })
+  const [resolverEnabled, setResolverEnabled] = useState(false)
 
   const handleInspect = useCallback(async (url: string) => {
     setState({ status: 'loading', result: null, error: null })
 
     try {
-      const result = await inspectUrl(url)
+      const result = await inspectUrl(url, resolverEnabled)
       setState({ status: 'success', result, error: null })
     } catch (err) {
       setState({
@@ -52,7 +55,7 @@ export default function App() {
         error: err instanceof Error ? err.message : 'Failed to inspect URL',
       })
     }
-  }, [])
+  }, [resolverEnabled])
 
   return (
     <TooltipProvider>
@@ -75,6 +78,26 @@ export default function App() {
 
           {/* URL Input */}
           <UrlForm onSubmit={handleInspect} isLoading={state.status === 'loading'} />
+
+          {/* Resolver toggle */}
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <Switch
+                id="resolver-toggle"
+                checked={resolverEnabled}
+                onCheckedChange={setResolverEnabled}
+              />
+              <Label htmlFor="resolver-toggle" className="text-xs text-muted-foreground cursor-pointer select-none">
+                Enable redirect resolver
+              </Label>
+            </div>
+            {resolverEnabled && (
+              <span className="text-[10px] text-muted-foreground/60">
+                via <a href="https://unshorten.me" target="_blank" rel="noopener noreferrer" className="underline hover:text-foreground">unshorten.me</a>
+                {' '}(~10/hr)
+              </span>
+            )}
+          </div>
 
           {/* Error */}
           {state.status === 'error' && (

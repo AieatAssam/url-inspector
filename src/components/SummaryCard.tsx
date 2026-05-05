@@ -48,6 +48,8 @@ export function SummaryCard({ result }: SummaryCardProps) {
     setTimeout(() => setter(false), 2000)
   }
 
+  const resolverRemaining = result.resolverRemaining
+
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-0 divide-y">
@@ -93,7 +95,7 @@ export function SummaryCard({ result }: SummaryCardProps) {
         </div>
 
         {/* Stats badges */}
-        <div className="grid grid-cols-3 divide-x">
+        <div className="grid grid-cols-4 divide-x">
           <div className="p-4 text-center space-y-1">
             <Badge variant={result.totalRedirects > 0 ? 'secondary' : 'outline'} className="gap-1">
               {result.totalRedirects > 0 ? <Route className="h-3 w-3" /> : <Zap className="h-3 w-3" />}
@@ -112,6 +114,16 @@ export function SummaryCard({ result }: SummaryCardProps) {
             <Badge variant={result.cleanUrl ? 'secondary' : 'outline'} className="gap-1">
               {result.cleanUrl ? <ShieldCheck className="h-3 w-3 text-green-500" /> : <Shield className="h-3 w-3" />}
               {result.cleanUrl ? `${trackingParams.length} trackers` : 'Clean'}
+            </Badge>
+          </div>
+          <div className="p-4 text-center space-y-1">
+            <Badge variant={result.resolverUsed ? 'secondary' : 'outline'} className="gap-1">
+              <ExternalLink className="h-3 w-3" />
+              {result.resolverUsed
+                ? resolverRemaining !== null && resolverRemaining !== undefined
+                  ? `${resolverRemaining} left`
+                  : 'Resolved'
+                : 'No resolver'}
             </Badge>
           </div>
         </div>

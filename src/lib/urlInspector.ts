@@ -52,11 +52,13 @@ export interface Hop {
 
 const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 
-// Optional redirect resolver for sites that block scraping (e.g. Forbes JS challenge).
-// When enabled, resolves short URLs through unshorten.me via codetabs.
-// Unshorten.me has a free limit of ~10 requests/hour.
-// Set to true to enable, false for fully client-side operation.
-const ENABLE_REDIRECT_RESOLVER = false
+// Resolver state: tracks remaining unshorten.me calls (10/hr limit)
+// Updated after each resolver call; we track it here across inspections
+let resolverCallCount = 0
+let resolverRemainingCount = 0
+
+// Unshorten.me API called through codetabs (codetabs adds CORS headers)
+const UNSHORTEN_API = 'https://api.codetabs.com/v1/proxy/?quest=https://unshorten.me/json/'
 
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
@@ -118,14 +120,10 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
 }
 
 /**
- * Optional redirect resolver via unshorten.me through the codetabs proxy.
- * Codetabs fetches unshorten.me which resolves the short URL server-side.
- * Only fires when ENABLE_REDIRECT_RESOLVER is true and inline URL extraction fails.
- * Unshorten.me has a ~10 requests/hour free limit.
+ * Resolve a short URL via unshorten.me through the codetabs proxy.
+ * Updates the remaining calls count from the response.
  */
-const UNSHORTEN_API = 'https://api.codetabs.com/v1/proxy/?quest=https://unshorten.me/json/'
-
-async function resolveViaUnshorten(shortUrl: string): Promise<string | null> {
+async function resolveViaUnshorten(shortUrl: string): Promise<{ url: string; remaining: number } | null> {
   try {
     const encoded = encodeURIComponent(shortUrl)
     const response = await fetchWithTimeout(`${UNSHORTEN_API}${encoded}`, {
@@ -138,7 +136,9 @@ async function resolveViaUnshorten(shortUrl: string): Promise<string | null> {
     if (!jsonMatch) return null
     const data = JSON.parse(jsonMatch[0])
     if (data.success && data.resolved_url) {
-      return data.resolved_url
+      resolverCallCount++
+      resolverRemainingCount = data.remaining_calls ?? 0
+      return { url: data.resolved_url, remaining: resolverRemainingCount }
     }
     return null
   } catch {
@@ -346,9 +346,11 @@ export interface InspectionResult {
   finalUrl: string
   proxyUsed: boolean
   wrapperDetected: boolean
+  resolverUsed: boolean
+  resolverRemaining: number | null
 }
 
-export async function inspectUrl(url: string): Promise<InspectionResult> {
+export async function inspectUrl(url: string, resolverEnabled = false): Promise<InspectionResult> {
   // Normalize URL
   let normalizedUrl = url.trim()
   if (!normalizedUrl.startsWith('http://') && !normalizedUrl.startsWith('https://')) {
@@ -374,14 +376,17 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
-  // Optional fallback: when inline HTML parsing failed (e.g. Forbes JS challenge),
-  // resolve via unshorten.me through codetabs (only if enabled by the user).
-  // Unshorten.me has ~10 requests/hour free limit.
-  if (ENABLE_REDIRECT_RESOLVER && proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
+  let resolverUsed = false
+  let resolverRemaining: number | null = null
+
+  // Optional: resolve via unshorten.me when inline HTML parsing fails
+  if (resolverEnabled && proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
     const resolved = await resolveViaUnshorten(normalizedUrl)
     if (resolved) {
+      resolverUsed = true
+      resolverRemaining = resolved.remaining
       finalHops[finalHops.length - 1] = {
-        url: resolved,
+        url: resolved.url,
         statusCode: 200,
         statusText: 'Proxy Resolved',
         timingMs: 0,
@@ -390,7 +395,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
         synthetic: true,
         statusMeaning: 'Redirect resolved via unshorten.me \u2014 final URL from external resolver',
       }
-      finalUrl = resolved
+      finalUrl = resolved.url
     }
   }
 
@@ -427,5 +432,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     finalUrl,
     proxyUsed,
     wrapperDetected: finalHops.some(h => h.synthetic),
+    resolverUsed,
+    resolverRemaining,
   }
 }

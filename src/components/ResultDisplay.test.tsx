@@ -15,6 +15,8 @@ const mockResult: InspectionResult = {
   finalUrl: 'https://bit.ly/test',
   proxyUsed: false,
   wrapperDetected: false,
+  resolverUsed: false,
+  resolverRemaining: null,
 }
 
 function renderWithProvider(ui: React.ReactElement) {
@@ -45,6 +47,8 @@ describe('ResultDisplay', () => {
       finalUrl: 'https://example.com',
       proxyUsed: false,
   wrapperDetected: false,
+  resolverUsed: false,
+  resolverRemaining: null,
     }
     renderWithProvider(<ResultDisplay result={resultWithRedirects} />)
     expect(screen.getByText('Final Destination')).toBeInTheDocument()

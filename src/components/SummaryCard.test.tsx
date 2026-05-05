@@ -17,6 +17,8 @@ const mockResult: InspectionResult = {
   finalUrl: 'https://example.com/final',
   proxyUsed: false,
   wrapperDetected: false,
+  resolverUsed: false,
+  resolverRemaining: null,
 }
 
 const directResult: InspectionResult = {
@@ -30,6 +32,8 @@ const directResult: InspectionResult = {
   finalUrl: 'https://example.com/some/very/long/path/that/gets/truncated/in/the/display?q=search',
   proxyUsed: false,
   wrapperDetected: false,
+  resolverUsed: false,
+  resolverRemaining: null,
 }
 
 function renderWithProvider(ui: React.ReactElement) {
@@ -108,6 +112,8 @@ describe('SummaryCard', () => {
       finalUrl: 'https://www.bbc.co.uk/sounds/category/news',
       proxyUsed: true,
       wrapperDetected: true,
+  resolverUsed: false,
+  resolverRemaining: null,
     }
     renderWithProvider(<SummaryCard result={proxyResult} />)
     // Should show the resolved final URL, not the short URL
@@ -127,6 +133,8 @@ describe('SummaryCard', () => {
       finalUrl: 'https://www.bbc.co.uk/sounds/category/news',
       proxyUsed: true,
       wrapperDetected: true,
+  resolverUsed: false,
+  resolverRemaining: null,
     }
     renderWithProvider(<SummaryCard result={proxyResult} />)
     const links = screen.getAllByRole('link')
