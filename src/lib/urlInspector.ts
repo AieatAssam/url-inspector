@@ -52,12 +52,11 @@ export interface Hop {
 
 const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 
-// Optional Cloudflare Worker for accurate redirect resolution (bypasses CORS).
-// Set this to your deployed worker URL, e.g.:
-//   https://url-inspector-resolver.<username>.workers.dev/resolve?url=
-// When null, falls back to showing "destination blocked" for scraping-blocked sites.
-const REDIRECT_RESOLVER: string | null = null
-// To enable, set: const REDIRECT_RESOLVER = 'https://your-worker.workers.dev/resolve?url='
+// Optional redirect resolver for sites that block scraping (e.g. Forbes JS challenge).
+// When enabled, resolves short URLs through unshorten.me via codetabs.
+// Unshorten.me has a free limit of ~10 requests/hour.
+// Set to true to enable, false for fully client-side operation.
+const ENABLE_REDIRECT_RESOLVER = false
 
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
@@ -119,27 +118,28 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
 }
 
 /**
- * Resolve a shortened URL using our Cloudflare Worker (server-side, no CORS).
- * The worker fetches the URL with redirect: 'manual' and returns the Location
- * header. This is the only way to get the exact redirect URL from the browser.
- * Falls back to null if the worker is not configured.
+ * Optional redirect resolver via unshorten.me through the codetabs proxy.
+ * Codetabs fetches unshorten.me which resolves the short URL server-side.
+ * Only fires when ENABLE_REDIRECT_RESOLVER is true and inline URL extraction fails.
+ * Unshorten.me has a ~10 requests/hour free limit.
  */
-async function resolveViaWorker(shortUrl: string): Promise<string | null> {
-  if (!REDIRECT_RESOLVER) return null
+const UNSHORTEN_API = 'https://api.codetabs.com/v1/proxy/?quest=https://unshorten.me/json/'
+
+async function resolveViaUnshorten(shortUrl: string): Promise<string | null> {
   try {
     const encoded = encodeURIComponent(shortUrl)
-    const response = await fetchWithTimeout(`${REDIRECT_RESOLVER}${encoded}`, {
+    const response = await fetchWithTimeout(`${UNSHORTEN_API}${encoded}`, {
       method: 'GET',
       mode: 'cors',
     }, 8000)
     if (!response.ok) return null
-    const data: { status: number; location?: string; hops?: string[]; error?: string } = await response.json()
-    if (data.error) return null
-    // Return the final URL from the hop chain, or the location header
-    if (data.hops && data.hops.length > 1) {
-      return data.hops[data.hops.length - 1]
+    const text = await response.text()
+    const jsonMatch = text.match(/\{[^{}]*\}/)
+    if (!jsonMatch) return null
+    const data = JSON.parse(jsonMatch[0])
+    if (data.success && data.resolved_url) {
+      return data.resolved_url
     }
-    if (data.location) return data.location
     return null
   } catch {
     return null
@@ -374,12 +374,11 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
-  // Additional fallback: if the proxy was used and inline HTML parsing failed
-  // (e.g. Forbes JS challenge), try our Cloudflare Worker for accurate resolution.
-  // The worker runs server-side, bypassing browser CORS to read the Location header.
-  // Falls back gracefully if worker is not configured or unavailable.
-  if (proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
-    const resolved = await resolveViaWorker(normalizedUrl)
+  // Optional fallback: when inline HTML parsing failed (e.g. Forbes JS challenge),
+  // resolve via unshorten.me through codetabs (only if enabled by the user).
+  // Unshorten.me has ~10 requests/hour free limit.
+  if (ENABLE_REDIRECT_RESOLVER && proxyUsed && lastHop && lastHop.synthetic && finalUrl === normalizedUrl) {
+    const resolved = await resolveViaUnshorten(normalizedUrl)
     if (resolved) {
       finalHops[finalHops.length - 1] = {
         url: resolved,
@@ -389,7 +388,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
         location: null,
         isFinal: true,
         synthetic: true,
-        statusMeaning: 'Redirect resolved via Cloudflare Worker \u2014 final URL from server-side redirect chain',
+        statusMeaning: 'Redirect resolved via unshorten.me \u2014 final URL from external resolver',
       }
       finalUrl = resolved
     }
