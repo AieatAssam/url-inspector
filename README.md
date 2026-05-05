@@ -77,6 +77,7 @@ npm run deploy
 | Affiliate | `tag`, `linkCode`, `linkId` |
 | Matomo Analytics | `mtm_source`, `mtm_medium`, `mtm_campaign`, `mtm_keyword`, `mtm_content`, `pk_source`, `pk_medium`, `pk_campaign`, `pk_keyword` |
 | Pinterest | `epik` |
+| Campaign Tracking | `CMP`, `cmp` (Guardian, news outlets) |
 | Referral | `ref`, `source`, `si`, `s_kwcid`, `ef_id` |
 | Ad Platform | `yclid`, `wickedid`, `trooptid` |
 | Other | `s_cid`, `mkt_tok`, `vero_conv`, `vero_id` |

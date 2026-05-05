@@ -94,4 +94,42 @@ describe('SummaryCard', () => {
     renderWithProvider(<SummaryCard result={directResult} />)
     expect(screen.getByTitle('https://example.com/some/very/long/path/that/gets/truncated/in/the/display?q=search')).toBeInTheDocument()
   })
+
+  it('shows proxy-resolved final URL when synthetic hop exists', () => {
+    const proxyResult: InspectionResult = {
+      originalUrl: 'https://bit.ly/short',
+      cleanUrl: null,
+      hops: [
+        { url: 'https://bit.ly/short', statusCode: 0, statusText: 'Error', timingMs: 150, location: null, isFinal: true, error: 'CORS / Network error' },
+        { url: 'https://www.bbc.co.uk/sounds/category/news', statusCode: 200, statusText: 'Proxy Resolved', timingMs: 0, location: null, isFinal: true, synthetic: true },
+      ],
+      totalRedirects: 1,
+      totalTiming: 150,
+      finalUrl: 'https://www.bbc.co.uk/sounds/category/news',
+      proxyUsed: true,
+      wrapperDetected: true,
+    }
+    renderWithProvider(<SummaryCard result={proxyResult} />)
+    // Should show the resolved final URL, not the short URL
+    expect(screen.getByTitle('https://www.bbc.co.uk/sounds/category/news')).toBeInTheDocument()
+  })
+
+  it('opens proxy-resolved final URL in external link', () => {
+    const proxyResult: InspectionResult = {
+      originalUrl: 'https://bit.ly/short',
+      cleanUrl: null,
+      hops: [
+        { url: 'https://bit.ly/short', statusCode: 0, statusText: 'Error', timingMs: 150, location: null, isFinal: true, error: 'CORS / Network error' },
+        { url: 'https://www.bbc.co.uk/sounds/category/news', statusCode: 200, statusText: 'Proxy Resolved', timingMs: 0, location: null, isFinal: true, synthetic: true },
+      ],
+      totalRedirects: 1,
+      totalTiming: 150,
+      finalUrl: 'https://www.bbc.co.uk/sounds/category/news',
+      proxyUsed: true,
+      wrapperDetected: true,
+    }
+    renderWithProvider(<SummaryCard result={proxyResult} />)
+    const links = screen.getAllByRole('link')
+    expect(links.some(l => l.getAttribute('href') === 'https://www.bbc.co.uk/sounds/category/news')).toBe(true)
+  })
 })

@@ -19,7 +19,7 @@ Tracking token usage across this project.
 | 6 | 2026-05-04 | 403 handling — 4xx/5xx proxy retry, fake User-Agent, x-final-url from error responses, flip.it test | +18k | +19k | 7.8k | 51% | — | $0.04 |
 | 7 | 2026-05-04 | **OG Preview build** — fetch OG metadata via CORS proxy, HTML head parser, preview card, 15 tests, 3 commits | *sub-agent* | — | — | — | — | $0.04 |
 | 8 | 2026-05-04 | **Polish pass** — code cleanup, agent-browser testing (8 URLs), UI animations, edge case hardening, 3 commits | *sub-agent* | +23k | — | 3% | — | $0.04 |
-| 9 | 2026-05-05 | **Proxy fix + improvements** — switched `corsproxy.io` → `api.codetabs.com` (free), added HTML parsing for final URL from proxy response, added 10+ tracking params (tag, gad_source, mtm_*, epik, linkCode), improved badge labels with counts, fixed singular/plural redirect text, updated example URLs, new README with screenshot, 138 tests pass | 56k + 12.9m cached | ~10k | 36.6k | 99% | +$0.02 | $0.06 |
+| 9 | 2026-05-05 | **Proxy fix + coverage + optimizations** — switched corsproxy.io → api.codetabs.com, inline HTML parsing for proxy final URL (eliminated double-fetch, 25x speedup), added 15+ tracking params (tag, linkCode, linkId, gad_source, gad_campaign, gad, mtm_*, pk_*, epik, CMP, cmp), improved badges with counts, proper singular/plural, proxy-resolved URL display, timeout reduction 15s→10s, 157 tests/90%+ coverage, updated README/screenshot, TEST_URLS.md | ~56k | ~50k | 14k | 58% | +$0.03 | $0.09 |
 
 > Rows 2-6: delta from previous `session_status` snapshot. Cache hit rates are snapshot-level, not deltas.
 
@@ -36,7 +36,8 @@ Tracking token usage across this project.
 | After power features | commit eb46e2a | 82k | — | 91k |
 | After 403 handling | commit be0a1d3 | 273k | 7.8k | 287k |
 | After polish pass | HEAD (prev) | 277k | 1.2k | 286k |
-| After proxy fix + improvements | HEAD (current) | 95k + 12.9m cached | 36.6k | 99% |
+| After proxy fix + improvements | HEAD (prev) | 95k + 12.9m cached | 36.6k | 99% |
+| After iteration 2 (optimizations + coverage) | HEAD (current) | 99k + 137k cached | 43k | 58% |
 
 ---
 

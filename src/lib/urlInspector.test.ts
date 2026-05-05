@@ -327,6 +327,122 @@ describe('inspectUrl', () => {
     expect(lastHop.statusText).toBe('Proxy Resolved')
   })
 
+  it('extracts final URL from proxy response HTML via og:url when x-final-url missing', async () => {
+    let callCount = 0
+    const htmlContent = `<!DOCTYPE html><html><head>
+      <meta property="og:url" content="https://www.bbc.co.uk/sounds/category/news" />
+      <link rel="canonical" href="https://www.bbc.co.uk/sounds/category/news" />
+      <title>BBC Sounds - News</title>
+    </head><body></body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(htmlContent)
+
+    // Helper: create a mock response body with getReader + clone support
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    // Factory: creates a fresh mock Response with body + clone() that returns another full Response
+    function makeResponse() {
+      const body = createBody()
+      return {
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        redirected: false,
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fbit.ly%2Fshort',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return Promise.resolve(makeResponse())
+    })
+
+    const result = await inspectUrl('https://bit.ly/short')
+    expect(result.finalUrl).toBe('https://www.bbc.co.uk/sounds/category/news')
+    const lastHop = result.hops[result.hops.length - 1]
+    expect(lastHop.synthetic).toBe(true)
+    expect(lastHop.statusText).toBe('Proxy Resolved')
+  })
+
+  it('falls back to canonical URL when og:url is missing from proxy HTML', async () => {
+    let callCount = 0
+    const htmlContent = `<!DOCTYPE html><html><head>
+      <link rel="canonical" href="https://example.com/final-destination" />
+      <title>Example</title>
+    </head><body></body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(htmlContent)
+
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    function makeResponse() {
+      const body = createBody()
+      return {
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        redirected: false,
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fbit.ly%2Fother',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return Promise.resolve(makeResponse())
+    })
+
+    const result = await inspectUrl('https://bit.ly/other')
+    expect(result.finalUrl).toBe('https://example.com/final-destination')
+  })
+
   it('does not trigger proxy probe for direct-fetch URLs', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       status: 200,

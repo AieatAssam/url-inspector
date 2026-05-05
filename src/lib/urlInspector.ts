@@ -114,7 +114,7 @@ export function unwrapUrl(url: string): { wrapper: WrapperPattern; destination: 
 // Realistic User-Agent to avoid 403 blocks from URL shorteners and link services
 const FAKE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36'
 
-async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 15000): Promise<Response> {
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs = 10000): Promise<Response> {
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
   try {
@@ -198,6 +198,46 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
         statusMeaning: STATUS_MEANINGS[statusCode],
       })
 
+      // When using the proxy, the response follows redirects server-side.
+      // Extract the final destination URL from the response HTML body.
+      if (isFinal && proxyUsed && statusCode === 200) {
+        try {
+          const cloned = response.clone()
+          const reader = cloned.body?.getReader()
+          let chunk = ''
+          if (reader) {
+            let bytesRead = 0
+            while (bytesRead < 150_000) {
+              const { done, value } = await reader.read()
+              if (done) break
+              chunk += new TextDecoder().decode(value, { stream: true })
+              bytesRead += value.length
+            }
+            reader.cancel()
+          }
+          const ogUrlMatch = chunk.match(/<meta[^>]+property\s*=\s*["']og:url["'][^>]+content\s*=\s*["']([^"']+)["']/i)
+          const canonMatch = chunk.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']/i)
+          const extractedUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
+          if (extractedUrl) {
+            const normalize = (u: string) => u.replace(/\/$/, '')
+            if (normalize(extractedUrl) !== normalize(currentUrl)) {
+              hops.push({
+                url: extractedUrl,
+                statusCode: 200,
+                statusText: 'Proxy Resolved',
+                timingMs: 0,
+                location: null,
+                isFinal: true,
+                synthetic: true,
+                statusMeaning: 'Redirect resolved via CORS proxy \u2014 server-side redirects were followed',
+              })
+            }
+          }
+        } catch {
+          // Body parsing failed, use the original hop as-is
+        }
+      }
+
       if (isFinal) break
 
       // Resolve the next URL
@@ -274,44 +314,14 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     proxyUsed = result.proxyUsed
   }
 
-  // Detect true final URL when using CORS proxy (which follows redirects server-side)
+  // Detect the true final URL — already handled by followChain which parses
+  // the proxy response HTML inline (extracts og:url or canonical URL).
+  // Also check for x-final-url header (some proxies set this).
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
   if (proxyUsed && lastHop && lastHop.statusCode === 200) {
-    // Check for x-final-url header (some proxies like corsproxy.io set this)
-    let proxyFinalUrl: string | null = lastHop.headers?.['x-final-url'] ?? null
-
-    // If no header, try to extract final URL from the response HTML
-    if (!proxyFinalUrl && normalizedUrl !== 'about:blank') {
-      try {
-        const probeUrl = `${CORS_PROXY}${encodeURIComponent(lastHop.url)}`
-        const probeResponse = await fetchWithTimeout(probeUrl, {
-          method: 'GET',
-          mode: 'cors',
-        })
-        // Read the response body but limit to first ~200KB (head tags are always early)
-        const reader = probeResponse.body?.getReader()
-        let chunk = ''
-        if (reader) {
-          let bytesRead = 0
-          while (bytesRead < 200_000) {
-            const { done, value } = await reader.read()
-            if (done) break
-            chunk += new TextDecoder().decode(value, { stream: true })
-            bytesRead += value.length
-          }
-          reader.cancel()
-        }
-        // Try extracting og:url first, then canonical URL
-        const ogUrlMatch = chunk.match(/<meta[^>]+property\s*=\s*["']og:url["'][^>]+content\s*=\s*["']([^"']+)["']/i)
-        const canonMatch = chunk.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']/i)
-        proxyFinalUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
-      } catch {
-        // Probe failed, use manual chain result
-      }
-    }
-
+    const proxyFinalUrl = lastHop.headers?.['x-final-url'] ?? null
     if (proxyFinalUrl) {
       const normalizeUrl = (u: string) => u.replace(/\/$/, '')
       if (normalizeUrl(proxyFinalUrl) !== normalizeUrl(lastHop.url)) {
@@ -323,8 +333,7 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
           location: null,
           isFinal: true,
           synthetic: true,
-          headers: proxyFinalUrl !== (lastHop.headers?.['x-final-url'] ?? proxyFinalUrl) ? undefined : lastHop.headers,
-          statusMeaning: 'Redirect resolved via CORS proxy \u2014 server-side redirects were followed',
+          statusMeaning: 'Redirect resolved via CORS proxy \u2014 final URL from proxy header',
         })
         finalUrl = proxyFinalUrl
       }

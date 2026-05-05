@@ -18,6 +18,8 @@ const TRACKING_PARAMS = [
   'epik',
   // Matomo / Piwik (alternative analytics)
   'mtm_source', 'mtm_medium', 'mtm_campaign', 'mtm_keyword', 'mtm_content', 'pk_source', 'pk_medium', 'pk_campaign', 'pk_keyword',
+  // News / social sharing (Guardian, NYT, etc.)
+  'CMP', 'cmp',
 ]
 
 export interface TrackingParamInfo {
@@ -38,6 +40,7 @@ function paramCategory(param: string): string {
   if (['tag', 'linkCode', 'linkId'].includes(param)) return 'Affiliate'
   if (param.startsWith('mtm_') || param.startsWith('pk_')) return 'Matomo Analytics'
   if (param === 'epik') return 'Pinterest'
+  if (['CMP', 'cmp'].includes(param)) return 'Campaign Tracking'
   return 'Other'
 }
 

@@ -96,6 +96,24 @@ describe('RedirectChain', () => {
     }
   })
 
+  it('shows "Proxy Resolved" label when single hop is synthetic', () => {
+    const syntheticHops: Hop[] = [
+      {
+        url: 'https://bit.ly/short',
+        statusCode: 200,
+        statusText: 'Proxy Resolved',
+        timingMs: 150,
+        location: null,
+        isFinal: true,
+        synthetic: true,
+      },
+    ]
+    renderWithProvider(
+      <RedirectChain hops={syntheticHops} expanded={false} onToggleExpanded={() => {}} />
+    )
+    expect(screen.getByText('Proxy Resolved')).toBeInTheDocument()
+  })
+
   it('renders empty state for no hops', () => {
     const { container } = renderWithProvider(
       <RedirectChain hops={[]} expanded={false} onToggleExpanded={() => {}} />
