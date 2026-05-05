@@ -305,26 +305,16 @@ describe('inspectUrl', () => {
         return Promise.reject(new TypeError('Failed to fetch'))
       }
       // Call 2 (proxy): share.google → proxy returns 200 with x-final-url
-      if (callCount <= 3) {
-        const headers = new Headers()
-        headers.set('x-final-url', 'https://example.com/real-destination')
-        return Promise.resolve({
-          status: 200,
-          statusText: 'OK',
-          headers,
-          redirected: false,
-          url: 'https://corsproxy.io/?url=https%3A%2F%2Fshare.google%2Fabc123',
-        })
-      }
-      // Call 4 (probe HEAD): returns x-final-url
       const headers = new Headers()
       headers.set('x-final-url', 'https://example.com/real-destination')
+      // Add content-type text/plain since codetabs returns this
+      headers.set('content-type', 'text/plain; charset=utf-8')
       return Promise.resolve({
         status: 200,
         statusText: 'OK',
         headers,
         redirected: false,
-        url: 'https://corsproxy.io/?url=https%3A%2F%2Fshare.google%2Fabc123',
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fshare.google%2Fabc123',
       })
     })
 
@@ -334,7 +324,7 @@ describe('inspectUrl', () => {
     // The last hop should be synthetic
     const lastHop = result.hops[result.hops.length - 1]
     expect(lastHop.synthetic).toBe(true)
-    expect(lastHop.statusText).toBe('JS Redirect')
+    expect(lastHop.statusText).toBe('Proxy Resolved')
   })
 
   it('does not trigger proxy probe for direct-fetch URLs', async () => {

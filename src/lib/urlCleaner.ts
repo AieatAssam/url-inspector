@@ -1,7 +1,7 @@
 const TRACKING_PARAMS = [
   // UTM
   'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-  // Social
+  // Social / Ad platforms
   'fbclid', 'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
   'msclkid', 'twclid', 'igshid', 'mc_cid', 'mc_eid',
   // Analytics
@@ -10,6 +10,14 @@ const TRACKING_PARAMS = [
   // Other trackers
   'ref', 'source', 'si', 's_kwcid', 'ef_id',
   's_cid', 'mkt_tok', 'vero_conv', 'vero_id',
+  // Google Ads
+  'gad_source', 'gad_campaign', 'gad',
+  // Amazon / e-commerce affiliate
+  'tag', 'linkCode', 'linkId',
+  // Pinterest
+  'epik',
+  // Matomo / Piwik (alternative analytics)
+  'mtm_source', 'mtm_medium', 'mtm_campaign', 'mtm_keyword', 'mtm_content', 'pk_source', 'pk_medium', 'pk_campaign', 'pk_keyword',
 ]
 
 export interface TrackingParamInfo {
@@ -26,6 +34,10 @@ function paramCategory(param: string): string {
   if (['mc_cid', 'mc_eid'].includes(param)) return 'Mailchimp'
   if (['yclid', 'wickedid', 'trooptid'].includes(param)) return 'Ad Platform'
   if (['ref', 'source', 'si', 's_kwcid', 'ef_id'].includes(param)) return 'Referral'
+  if (['gad_source', 'gad_campaign', 'gad'].includes(param)) return 'Google Ads'
+  if (['tag', 'linkCode', 'linkId'].includes(param)) return 'Affiliate'
+  if (param.startsWith('mtm_') || param.startsWith('pk_')) return 'Matomo Analytics'
+  if (param === 'epik') return 'Pinterest'
   return 'Other'
 }
 

@@ -4,7 +4,7 @@
  * and extracts meta tags for preview cards.
  */
 
-const CORS_PROXY = 'https://corsproxy.io/?url='
+const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 const FETCH_TIMEOUT = 8000
 const MAX_RESPONSE_BYTES = 200_000 // 200KB should be enough for <head>
 

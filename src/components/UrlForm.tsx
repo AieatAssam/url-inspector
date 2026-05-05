@@ -9,9 +9,9 @@ interface UrlFormProps {
 }
 
 const EXAMPLE_URLS = [
-  'https://bit.ly/example',
-  'https://tinyurl.com/example',
+  'https://bit.ly/3ENLcS1',
   'https://www.google.com/url?q=https://example.com',
+  'https://example.com/?utm_source=twitter&utm_medium=social&fbclid=abc123',
 ]
 
 export function UrlForm({ onSubmit, isLoading }: UrlFormProps) {

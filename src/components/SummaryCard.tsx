@@ -29,8 +29,15 @@ export function SummaryCard({ result }: SummaryCardProps) {
   const [copiedClean, setCopiedClean] = useState(false)
   const [showTrackingDetails, setShowTrackingDetails] = useState(false)
 
-  const finalInfo = formatUrl(result.finalUrl)
   const cleanInfo = result.cleanUrl ? formatUrl(result.cleanUrl) : null
+
+  // Detect proxy-resolved chain for better display
+  const hops = result.hops
+  const proxyResolvedUrl = hops.length === 2 && hops[0].synthetic === false && hops[1].synthetic === true
+    ? hops[1].url
+    : null
+  const displayFinal = proxyResolvedUrl || result.finalUrl
+  const finalInfo = formatUrl(displayFinal)
 
   const trackingParams = result.cleanUrl ? extractTrackingParams(result.originalUrl) : []
   const trackingByCategory = groupBy(trackingParams, t => t.category)
@@ -53,14 +60,14 @@ export function SummaryCard({ result }: SummaryCardProps) {
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-sm font-mono truncate flex-1" title={finalInfo.full}>
+            <span className="text-sm font-mono truncate flex-1" title={displayFinal}>
               {finalInfo.display}
             </span>
             <div className="flex items-center gap-1 flex-shrink-0">
               <Tooltip>
                 <TooltipTrigger asChild>
                   <button
-                    onClick={() => copyUrl(finalInfo.full, setCopiedFinal)}
+                    onClick={() => copyUrl(displayFinal, setCopiedFinal)}
                     className="p-1.5 rounded-md hover:bg-muted transition-colors cursor-pointer"
                   >
                     {copiedFinal ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5 text-muted-foreground" />}
@@ -71,7 +78,7 @@ export function SummaryCard({ result }: SummaryCardProps) {
               <Tooltip>
                 <TooltipTrigger asChild>
                   <a
-                    href={finalInfo.full}
+                    href={displayFinal}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="p-1.5 rounded-md hover:bg-muted transition-colors"
@@ -104,7 +111,7 @@ export function SummaryCard({ result }: SummaryCardProps) {
           <div className="p-4 text-center space-y-1">
             <Badge variant={result.cleanUrl ? 'secondary' : 'outline'} className="gap-1">
               {result.cleanUrl ? <ShieldCheck className="h-3 w-3 text-green-500" /> : <Shield className="h-3 w-3" />}
-              {result.cleanUrl ? 'Trackers found' : 'Clean'}
+              {result.cleanUrl ? `${trackingParams.length} trackers` : 'Clean'}
             </Badge>
           </div>
         </div>

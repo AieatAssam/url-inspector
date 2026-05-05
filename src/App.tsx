@@ -102,7 +102,7 @@ export default function App() {
                     Paste a shortened or redirect-heavy URL above to inspect it
                   </p>
                   <p className="text-xs text-muted-foreground/60">
-                    Works with bit.ly, t.co, google.com/url, share.google, and any redirect chain
+                    Works with bit.ly, t.co, google.com/url, Amazon, Facebook, Reddit, and any redirect chain
                   </p>
                 </div>
               </div>

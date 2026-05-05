@@ -44,7 +44,7 @@ describe('RedirectChain', () => {
     renderWithProvider(
       <RedirectChain hops={hops} expanded={false} onToggleExpanded={() => {}} />
     )
-    expect(screen.getByText('1 redirects')).toBeInTheDocument()
+    expect(screen.getByText('1 redirect')).toBeInTheDocument()
   })
 
   it('shows "No redirects" when collapsed and none found', () => {
@@ -89,7 +89,7 @@ describe('RedirectChain', () => {
     renderWithProvider(
       <RedirectChain hops={hops} expanded={false} onToggleExpanded={onToggle} />
     )
-    const toggleButton = screen.getByText('1 redirects').closest('button')
+    const toggleButton = screen.getByText('1 redirect').closest('button')
     if (toggleButton) {
       await user.click(toggleButton)
       expect(onToggle).toHaveBeenCalledTimes(1)

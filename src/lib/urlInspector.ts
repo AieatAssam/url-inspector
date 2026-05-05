@@ -50,7 +50,7 @@ export interface Hop {
   statusMeaning?: string
 }
 
-const CORS_PROXY = 'https://corsproxy.io/?url='
+const CORS_PROXY = 'https://api.codetabs.com/v1/proxy/?quest='
 
 const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
@@ -274,25 +274,41 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
     proxyUsed = result.proxyUsed
   }
 
-  // Detect true final URL via proxy's x-final-url header (handles JS/interstitial redirects)
+  // Detect true final URL when using CORS proxy (which follows redirects server-side)
   const lastHop = finalHops[finalHops.length - 1]
   let finalUrl = lastHop?.url || normalizedUrl
 
-  if (proxyUsed && lastHop) {
-    // Try to find x-final-url either from existing headers or via a probe
-    let proxyFinalUrl: string | null = null
+  if (proxyUsed && lastHop && lastHop.statusCode === 200) {
+    // Check for x-final-url header (some proxies like corsproxy.io set this)
+    let proxyFinalUrl: string | null = lastHop.headers?.['x-final-url'] ?? null
 
-    // Check if last hop already has x-final-url in headers (from proxy response)
-    if (lastHop.headers?.['x-final-url']) {
-      proxyFinalUrl = lastHop.headers['x-final-url']
-    } else if (lastHop.statusCode === 200) {
-      // Probe the proxy for the true final URL
+    // If no header, try to extract final URL from the response HTML
+    if (!proxyFinalUrl && normalizedUrl !== 'about:blank') {
       try {
         const probeUrl = `${CORS_PROXY}${encodeURIComponent(lastHop.url)}`
-        const probeResponse = await fetchWithTimeout(probeUrl, { redirect: 'follow', method: 'HEAD', mode: 'cors' })
-        proxyFinalUrl = probeResponse.headers.get('x-final-url')
+        const probeResponse = await fetchWithTimeout(probeUrl, {
+          method: 'GET',
+          mode: 'cors',
+        })
+        // Read the response body but limit to first ~200KB (head tags are always early)
+        const reader = probeResponse.body?.getReader()
+        let chunk = ''
+        if (reader) {
+          let bytesRead = 0
+          while (bytesRead < 200_000) {
+            const { done, value } = await reader.read()
+            if (done) break
+            chunk += new TextDecoder().decode(value, { stream: true })
+            bytesRead += value.length
+          }
+          reader.cancel()
+        }
+        // Try extracting og:url first, then canonical URL
+        const ogUrlMatch = chunk.match(/<meta[^>]+property\s*=\s*["']og:url["'][^>]+content\s*=\s*["']([^"']+)["']/i)
+        const canonMatch = chunk.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']/i)
+        proxyFinalUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
       } catch {
-        // Probe failed, stick with manual chain
+        // Probe failed, use manual chain result
       }
     }
 
@@ -302,13 +318,13 @@ export async function inspectUrl(url: string): Promise<InspectionResult> {
         finalHops.push({
           url: proxyFinalUrl,
           statusCode: 200,
-          statusText: 'JS Redirect',
+          statusText: 'Proxy Resolved',
           timingMs: 0,
           location: null,
           isFinal: true,
           synthetic: true,
-          headers: { 'x-final-url': proxyFinalUrl },
-          statusMeaning: 'Interstitial redirect \u2014 resolved via CORS proxy',
+          headers: proxyFinalUrl !== (lastHop.headers?.['x-final-url'] ?? proxyFinalUrl) ? undefined : lastHop.headers,
+          statusMeaning: 'Redirect resolved via CORS proxy \u2014 server-side redirects were followed',
         })
         finalUrl = proxyFinalUrl
       }

@@ -72,9 +72,9 @@ describe('SummaryCard', () => {
     expect(screen.getByText(/Clean/)).toBeInTheDocument()
   })
 
-  it('shows "Trackers found" badge when trackers present', () => {
+  it('shows "1 tracker" badge when one tracker present', () => {
     renderWithProvider(<SummaryCard result={mockResult} />)
-    expect(screen.getByText('Trackers found')).toBeInTheDocument()
+    expect(screen.getByText('1 trackers')).toBeInTheDocument()
   })
 
   it('has copy buttons for URLs', () => {

@@ -43,7 +43,14 @@ export function RedirectChain({ hops, expanded, onToggleExpanded }: RedirectChai
           ) : (
             <>
               <ChevronRight className="h-4 w-4" />
-              <span>{hops.length > 1 ? `${hops.length - 1} redirects` : 'No redirects'}</span>
+              <span>
+                {hops.length > 1
+                  ? `${hops.length - 1} redirect${hops.length !== 2 ? 's' : ''}`
+                  : hops[0]?.synthetic
+                    ? 'Proxy Resolved'
+                    : 'No redirects'
+                }
+              </span>
             </>
           )}
         </button>

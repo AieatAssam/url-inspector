@@ -25,3 +25,6 @@ dist-ssr
 
 # Coverage output
 coverage/
+
+# Test documentation (keep out of git)
+TEST_URLS.md

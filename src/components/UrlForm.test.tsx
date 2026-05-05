@@ -47,11 +47,11 @@ describe('UrlForm', () => {
     const user = userEvent.setup()
     render(<UrlForm onSubmit={() => {}} isLoading={false} />)
 
-    const exampleButton = screen.getByText('https://bit.ly/example')
+    const exampleButton = screen.getByText('https://bit.ly/3ENLcS1')
     await user.click(exampleButton)
 
     const input = screen.getByPlaceholderText('Paste a URL to inspect...')
-    expect(input).toHaveValue('https://bit.ly/example')
+    expect(input).toHaveValue('https://bit.ly/3ENLcS1')
   })
 
   it('does not submit on empty input', async () => {
