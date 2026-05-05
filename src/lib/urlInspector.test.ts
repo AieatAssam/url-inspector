@@ -12,6 +12,8 @@ describe('isShortUrl', () => {
       'https://buff.ly/abc',
       'https://lnkd.in/abc',
       'https://cutt.ly/abc',
+      'https://flip.it/abc',
+      'https://flipboard.com/abc',
     ]
     for (const url of shorteners) {
       expect(isShortUrl(url), `${url} should be detected as short URL`).toBe(true)
@@ -441,6 +443,117 @@ describe('inspectUrl', () => {
 
     const result = await inspectUrl('https://bit.ly/other')
     expect(result.finalUrl).toBe('https://example.com/final-destination')
+  })
+
+  it('extracts domain from title tag when og:url and canonical are missing (Forbes JS challenge style)', async () => {
+    let callCount = 0
+    const htmlContent = `<!DOCTYPE html><html><head><title>forbes.com</title><style>#cmsg{animation:A 1.5s;}</style></head><body><p id="cmsg">Please enable JS and disable any ad blocker</p></body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(htmlContent)
+
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    function makeResponse() {
+      const body = createBody()
+      return {
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        redirected: false,
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fflip.it%2Fshort',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return Promise.resolve(makeResponse())
+    })
+
+    const result = await inspectUrl('https://flip.it/short')
+    // Should extract domain from <title>forbes.com</title>
+    expect(result.finalUrl).toBe('https://forbes.com/')
+    expect(result.hops.length).toBe(2)
+    expect(result.hops[1].synthetic).toBe(true)
+    expect(result.hops[1].statusText).toBe('Proxy Resolved')
+  })
+
+  it('uses fallback synthetic hop when proxy resolves short URL but cannot extract destination', async () => {
+    let callCount = 0
+    const htmlContent = `<!DOCTYPE html><html><head><title>Some Random Page</title></head><body><p>Hello</p></body></html>`
+    const encoder = new TextEncoder()
+    const bytes = encoder.encode(htmlContent)
+
+    function createBody() {
+      let consumed = false
+      return {
+        getReader: () => ({
+          read: () => {
+            if (!consumed) {
+              consumed = true
+              return Promise.resolve({ done: false, value: bytes })
+            }
+            return Promise.resolve({ done: true, value: undefined })
+          },
+          cancel: () => Promise.resolve(),
+        }),
+      }
+    }
+
+    function makeResponse() {
+      const body = createBody()
+      return {
+        status: 200,
+        statusText: 'OK',
+        headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+        redirected: false,
+        url: 'https://api.codetabs.com/v1/proxy/?quest=https%3A%2F%2Fbit.ly%2Fnope',
+        body,
+        clone: () => ({
+          status: 200,
+          statusText: 'OK',
+          headers: new Headers({ 'content-type': 'text/plain; charset=utf-8' }),
+          body: createBody(),
+        }),
+      }
+    }
+
+    global.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.reject(new TypeError('Failed to fetch'))
+      }
+      return Promise.resolve(makeResponse())
+    })
+
+    const result = await inspectUrl('https://bit.ly/nope')
+    // Should still detect a redirect even without extracting URL
+    expect(result.hops.length).toBe(2)
+    expect(result.hops[1].synthetic).toBe(true)
+    expect(result.hops[1].statusText).toBe('Redirected \u2192 destination blocked')
   })
 
   it('does not trigger proxy probe for direct-fetch URLs', async () => {

@@ -56,7 +56,7 @@ const SHORTENER_DOMAINS = [
   'bit.ly', 'tinyurl.com', 't.co', 'goo.gl', 'ow.ly', 'is.gd',
   'buff.ly', 'shorturl.at', 'tiny.cc', 'bl.ink', 'lnkd.in', 'rb.gy',
   'rebrand.ly', 'cutt.ly', 'shorte.st', 'v.gd', 'clicky.me',
-  'share.google',
+  'share.google', 'flip.it', 'flipboard.com',
 ]
 
 /** Known URL wrapper patterns that use query params to store the real destination */
@@ -215,9 +215,31 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
             }
             reader.cancel()
           }
+
+          // Try full og:url first, then canonical URL
+          let extractedUrl: string | null = null
           const ogUrlMatch = chunk.match(/<meta[^>]+property\s*=\s*["']og:url["'][^>]+content\s*=\s*["']([^"']+)["']/i)
           const canonMatch = chunk.match(/<link[^>]+rel\s*=\s*["']canonical["'][^>]+href\s*=\s*["']([^"']+)["']/i)
-          const extractedUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
+          extractedUrl = ogUrlMatch?.[1] || canonMatch?.[1] || null
+
+          // Fallback: extract domain from <title> tag for sites that block scraping
+          // (e.g. Forbes JS challenge page: <title>forbes.com</title>)
+          if (!extractedUrl) {
+            const titleMatch = chunk.match(/<title>([^<]*)<\/title>/i)
+            const titleDomain = titleMatch?.[1]?.trim() || null
+            // If title looks like a domain (e.g. "forbes.com", "cnn.com"), use it
+            if (titleDomain && /^[a-zA-Z0-9][-a-zA-Z0-9.]*\.[a-z]{2,}$/.test(titleDomain)) {
+              try {
+                const resolvedUrl = new URL(`https://${titleDomain}`).href
+                if (new URL(resolvedUrl).hostname !== new URL(currentUrl).hostname) {
+                  extractedUrl = resolvedUrl
+                }
+              } catch {
+                // Invalid domain, skip
+              }
+            }
+          }
+
           if (extractedUrl) {
             const normalize = (u: string) => u.replace(/\/$/, '')
             if (normalize(extractedUrl) !== normalize(currentUrl)) {
@@ -229,9 +251,24 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
                 location: null,
                 isFinal: true,
                 synthetic: true,
-                statusMeaning: 'Redirect resolved via CORS proxy \u2014 server-side redirects were followed',
+                statusMeaning: extractedUrl.startsWith('https://') && new URL(extractedUrl).hostname !== new URL(currentUrl).hostname
+                  ? 'Redirect resolved via CORS proxy \u2014 final page blocked scraping, domain detected from title'
+                  : 'Redirect resolved via CORS proxy \u2014 server-side redirects were followed',
               })
             }
+          } else if (isShortUrl(currentUrl)) {
+            // Even without extracting a URL, mark that a redirect was resolved
+            // so the collapsed state shows 'Proxy Resolved' instead of 'No redirects'
+            hops.push({
+              url: currentUrl,
+              statusCode: 200,
+              statusText: 'Redirected \u2192 destination blocked',
+              timingMs: 0,
+              location: null,
+              isFinal: true,
+              synthetic: true,
+              statusMeaning: 'Redirect resolved via CORS proxy \u2014 final destination blocked scraping (JS challenge, paywall, or bot detection)',
+            })
           }
         } catch {
           // Body parsing failed, use the original hop as-is
