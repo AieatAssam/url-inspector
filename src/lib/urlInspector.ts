@@ -259,7 +259,12 @@ async function followChain(url: string, useProxy: boolean, maxHops = 20): Promis
 
           if (extractedUrl) {
             const normalize = (u: string) => u.replace(/\/$/, '')
-            if (normalize(extractedUrl) !== normalize(currentUrl)) {
+            // Only use og:url if it doesn't lose specificity from the original URL.
+            // LinkedIn og:url drops commentUrn params — we should keep the original.
+            const origParams = new URL(currentUrl).searchParams
+            const extractedParams = new URL(extractedUrl).searchParams
+            const losesParams = [...origParams.keys()].some(k => !extractedParams.has(k))
+            if (normalize(extractedUrl) !== normalize(currentUrl) && !losesParams) {
               hops.push({
                 url: extractedUrl,
                 statusCode: 200,
