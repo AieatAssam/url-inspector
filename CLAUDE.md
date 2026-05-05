@@ -34,8 +34,11 @@ This applies to **every** session that touches this repo — even "quick fixes."
 | File | Purpose |
 |---|---|
 | `src/lib/urlInspector.ts` | Core logic: redirect following, CORS fallback, timing |
-| `src/lib/urlCleaner.ts` | Tracking parameter stripping |
-| `src/components/` | UI components (UrlForm, HopNode, RedirectChain, etc.) |
+| `src/lib/urlCleaner.ts` | Tracking parameter stripping (canonical tracking param list) |
+| `src/lib/ogPreview.ts` | Open Graph / Twitter Card meta extraction via CORS proxy |
+| `src/lib/formatUrl.ts` | URL display formatting with truncation |
+| `src/components/` | UI components (UrlForm, HopNode, RedirectChain, OgPreview, SummaryCard) |
+| `src/components/ui/` | shadcn/ui primitives (Card, Badge, Button, Tooltip, etc.) |
 | `TOKEN_COST.md` | Token tracking ledger |
 | `CLAUDE.md` | This file — primary agent instructions |
 | `AGENTS.md` | Legacy alias pointing here — same content |
