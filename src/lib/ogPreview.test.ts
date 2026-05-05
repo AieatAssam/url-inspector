@@ -1,6 +1,16 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { fetchOgPreview } from './ogPreview'
 
+// Helper to create a minimal mock HTML response
+function mockHtmlResponse(html: string) {
+  return {
+    ok: true,
+    status: 200,
+    statusText: 'OK',
+    text: () => Promise.resolve(html),
+  }
+}
+
 describe('fetchOgPreview', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
@@ -90,17 +100,46 @@ describe('fetchOgPreview', () => {
     expect(result).toBeNull()
   })
 
+  it('extracts theme-color meta tag', async () => {
+    const html = `<html><head>
+      <meta name="theme-color" content="#663399" />
+    </head></html>`
+
+    global.fetch = vi.fn().mockResolvedValue(mockHtmlResponse(html))
+
+    const result = await fetchOgPreview('https://example.com')
+    expect(result!.themeColor).toBe('#663399')
+  })
+
+  it('handles numeric HTML entities (&#...;) in content', async () => {
+    const html = `<html><head>
+      <title>Hello &#9835; World</title>
+    </head></html>`
+
+    global.fetch = vi.fn().mockResolvedValue(mockHtmlResponse(html))
+
+    const result = await fetchOgPreview('https://example.com')
+    expect(result!.title).toBe('Hello ♫ World')
+  })
+
+  it('handles malformed og:image URL gracefully', async () => {
+    // Use a host with brackets (invalid) to trigger URL parsing failure
+    const html = `<html><head>
+      <meta property="og:image" content="http://[invalid" />
+    </head></html>`
+
+    global.fetch = vi.fn().mockResolvedValue(mockHtmlResponse(html))
+
+    const result = await fetchOgPreview('https://example.com')
+    expect(result!.image).toBeNull()
+  })
+
   it('returns the favicon fallback when no <link rel=icon> exists', async () => {
     const html = `<html><head>
       <title>No Icon</title>
     </head></html>`
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      statusText: 'OK',
-      text: () => Promise.resolve(html),
-    })
+    global.fetch = vi.fn().mockResolvedValue(mockHtmlResponse(html))
 
     const result = await fetchOgPreview('https://example.com/page')
     expect(result!.favicon).toBe('https://example.com/favicon.ico')
