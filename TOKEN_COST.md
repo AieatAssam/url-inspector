@@ -1,41 +1,45 @@
 # Token Cost Tracking — URL Inspector
 
-Tracking token usage and estimated costs for this project.
+Tracking token usage across this project. All work done in a single session on 2026-05-04.
 
-## Rate assumptions
-
-- **Model:** deepseek/deepseek-v4-flash (OpenClaw default)
-- **Data source:** `session_status` reports
-- All work done in one session on 2026-05-04
+**Model:** deepseek/deepseek-v4-flash via OpenClaw  
+**Data source:** `session_status` snapshots taken at each meaningful boundary
 
 ---
 
-## Final Session
+## Per-Turn Breakdown
 
-| Metric | Value |
-|---|---|
-| Input (new) | 273k tokens |
-| Input (cached) | 287k tokens |
-| Output (last turn) | 7.8k tokens |
-| Cache hit rate | 51% |
-| Estimated cost | $0.04 |
-| Max context used | 287k / 1M (29%) |
+| # | Turn | Input (cached) | Input (new) | Output | Cache | Cost | Cumul. cost |
+|---|---|---|---|---|---|---|---|
+| 1 | Research + Build — web searches, project scaffold, core library, 5 components, GH Pages deploy | 67k | 36k | 30k | 65% | $0.01 | $0.01 |
+| 2 | Cost tracking setup — AGENTS.md, git init, initial push | +4k | +26k | 557 | 53% | — | $0.01 |
+| 3 | CI fix + tests — npm lock format fix, 94 unit tests, coverage gating (90%+ lib), GHA workflow | +6k | +6k | 95 | 53% | — | $0.01 |
+| 4 | URL wrappers — Google/FB/Reddit detection, share.google handling, x-final-url probe, synthetic hops | +9k | +9k | 157 | 53% | +$0.03 | $0.04 |
+| 5 | Power features — per-hop headers, status meanings, tracking param breakdown, probe dedup & URL fix | +5k | +5k | 80 | — | — | $0.04 |
+| 6 | 403 handling — 4xx/5xx proxy retry, fake User-Agent, x-final-url from error responses, flip.it test | +18k | +19k | 7.8k | 51% | — | $0.04 |
+| 7 | *(sub-agent in progress)* OG preview, UX polish, agent-browser testing | +? | +4k | 1.2k | 51% | — | $0.04 |
 
-## Activity Log
-
-| # | Phase | What was done |
-|---|---|---|
-| 1 | **Research** | Web searches for tool ideas, analysis of Reddit/HN pain points, proposed 8 candidates, user picked URL Inspector |
-| 2 | **Scaffold & Build** | Vite + React 19 + TS 6 + Tailwind 4 + shadcn/ui, redirect chain library, CORS fallback, timing, 5 components |
-| 3 | **CI & Tests** | npm lock fix (npm 10 vs 11), caching, 94 unit tests, coverage gating (90%+ lib), agent instructions |
-| 4 | **URL Detection** | URL wrappers (Google, Facebook, Reddit, LinkedIn), `share.google` handling, x-final-url probe, synthetic hops |
-| 5 | **Power Features** | Per-hop response headers, status meanings, tracking param breakdown, probe dedup, probe URL fix |
-| 6 | **403 Handling** | 4xx/5xx retry via CORS proxy, fake User-Agent header, x-final-url from non-200 proxy responses, flip.it URL test |
-
-**Total test count:** 118 tests across 9 test files
+> Rows 2-6: delta from previous `session_status` snapshot. Cache hit rates are snapshot-level, not deltas.
 
 ---
 
-## How to update
+## Snapshot Log
 
-See `AGENTS.md` for the mandatory cost-tracking workflow. Before/after each future session: run `session_status`, append new activity row.
+| Timestamp | Snapshot | In | Out (turn) | Cached |
+|---|---|---|---|---|
+| Initial build complete | commit bb026d2 | 36k | 30k | 67k |
+| After push + AGENTS.md | commit a466707 | 62k | 557 | 71k |
+| After CI/tests push | commit e588422 | 68k | 652 | 77k |
+| After URL wrappers | commit 30ded68 | 77k | — | 86k |
+| After power features | commit eb46e2a | 82k | — | 91k |
+| After 403 handling | commit be0a1d3 | 273k | 7.8k | 287k |
+| Current (sub-agent running) | HEAD | 277k | 1.2k | 286k |
+
+---
+
+## Notes
+
+- "In" is cumulative across the session. "Out" is per-turn output for the most recent model response.
+- "Cached" = tokens served from system prompt / context cache (provider telemetry).
+- Gaps between snapshot #4→#5 and #5→#6 mean some turns weren't individually snapshotted; deltas are best estimates from available data.
+- The sub-agent (#7) is currently building OG preview features — will be updated on completion.
