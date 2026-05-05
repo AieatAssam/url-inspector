@@ -17,7 +17,8 @@ Tracking token usage across this project. All work done in a single session on 2
 | 4 | URL wrappers — Google/FB/Reddit detection, share.google handling, x-final-url probe, synthetic hops | +9k | +9k | 157 | 53% | +$0.03 | $0.04 |
 | 5 | Power features — per-hop headers, status meanings, tracking param breakdown, probe dedup & URL fix | +5k | +5k | 80 | — | — | $0.04 |
 | 6 | 403 handling — 4xx/5xx proxy retry, fake User-Agent, x-final-url from error responses, flip.it test | +18k | +19k | 7.8k | 51% | — | $0.04 |
-| 7 | *(sub-agent in progress)* OG preview, UX polish, agent-browser testing | +? | +4k | 1.2k | 51% | — | $0.04 |
+| 7 | **OG Preview build** — fetch OG metadata via CORS proxy, HTML head parser, preview card, 15 tests, 3 commits | *sub-agent* | — | — | — | — | $0.04 |
+| 8 | **Polish pass** — code cleanup, agent-browser testing (8 URLs), UI animations, edge case hardening, 3 commits | *sub-agent* | +23k | — | 3% | — | $0.04 |
 
 > Rows 2-6: delta from previous `session_status` snapshot. Cache hit rates are snapshot-level, not deltas.
 
