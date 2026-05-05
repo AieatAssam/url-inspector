@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react'
 import { UrlForm } from '@/components/UrlForm'
 import { ResultDisplay } from '@/components/ResultDisplay'
 import { inspectUrl, type InspectionResult } from '@/lib/urlInspector'
-import { AlertCircle, Link2, GitBranch, MonitorSmartphone, Route, Zap, ShieldCheck, Eye, ExternalLink } from 'lucide-react'
+import { AlertCircle, Link2, GitBranch, Route, ShieldCheck, Eye, Zap } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { TooltipProvider } from '@/components/ui/tooltip'
 

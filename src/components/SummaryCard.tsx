@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { Separator } from '@/components/ui/separator'
 import {
   Copy, Check, ExternalLink, ShieldCheck, Shield, Route, Zap,
   ChevronDown, ChevronRight, List,
