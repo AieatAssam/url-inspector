@@ -1,4 +1,4 @@
-import { stripTrackingParams } from './urlCleaner'
+import { stripTrackingParams, extractTrackingParams } from './urlCleaner'
 
 /** Headers worth surfacing in advanced mode */
 const INTERESTING_HEADERS = [
@@ -86,22 +86,7 @@ export function isShortUrl(url: string): boolean {
 }
 
 export function countTrackingParams(url: string): number {
-  const TRACKING_PARAMS = [
-    'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content',
-    'fbclid', 'gclid', 'gclsrc', 'dclid', 'gbraid', 'wbraid',
-    'msclkid', 'twclid', 'igshid', 'mc_cid', 'mc_eid',
-    '_ga', '_gl', '_hsenc', '_hsmi', 'hsCtaTracking',
-  ]
-  try {
-    const parsed = new URL(url)
-    let count = 0
-    for (const param of TRACKING_PARAMS) {
-      if (parsed.searchParams.has(param)) count++
-    }
-    return count
-  } catch {
-    return 0
-  }
+  return extractTrackingParams(url).length
 }
 
 /**
